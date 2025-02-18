@@ -1,0 +1,35 @@
+server:
+  port: 8082
+
+spring:
+  # MySQL配置
+  datasource:
+    url: jdbc:mysql://47.120.78.249:3306/users
+    username: adminUser
+    password: xWtgRmSuqKdd..2
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  # JPA配置
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    generate-ddl: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+
+  # MongoDB配置
+  data:
+    mongodb:
+      host: 47.120.78.249
+      port: 27017
+      database: WordTrail
+      username: root
+      password: xWtgRmSuqKdd..2
+      authentication-database: admin  # 这个很重要
+
+# JWT配置
+jwt:
+  secret: 1pOb5Azlv5G3W5EiVXGSKW6ZvpM4UMlUD1AuY9zUn6Y=
+  expiration: 3600000
