@@ -2,71 +2,162 @@ package com.tongji.wordtrail.controller;
 
 import com.tongji.wordtrail.model.WordLearningProgress;
 import com.tongji.wordtrail.service.WordLearningProgressService;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * 单词学习进度控制器
+ * 处理用户的单词学习和复习相关请求
+ */
 @RestController
-@RequestMapping("/api/v1/progress")
+@RequestMapping("/api/v1/learning")
 public class WordLearningProgressController {
 
-    private final WordLearningProgressService progressService;
+    private final WordLearningProgressService learningProgressService;
 
     @Autowired
-    public WordLearningProgressController(WordLearningProgressService progressService) {
-        this.progressService = progressService;
+    public WordLearningProgressController(WordLearningProgressService learningProgressService) {
+        this.learningProgressService = learningProgressService;
     }
 
-    @GetMapping("/word/{userId}/{wordId}")
-    public ResponseEntity<?> getWordProgress(
-            @PathVariable String userId,
-            @PathVariable String wordId) {
-        return ResponseEntity.ok(progressService.getWordProgress(userId, wordId));
+    /**
+     * 开始学习新单词
+     */
+    @PostMapping("/start")
+    public ResponseEntity<WordLearningProgress> startLearning(
+            @RequestParam String userId,
+            @RequestParam ObjectId wordId) {
+        WordLearningProgress progress = learningProgressService.startLearningWord(userId, wordId);
+        return new ResponseEntity<>(progress, HttpStatus.OK);
     }
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<?> getUserProgress(
-            @PathVariable String userId,
-            @RequestParam(defaultValue = "0.7") double proficiencyThreshold) {
-        return ResponseEntity.ok(progressService.getUserWordProgress(userId, proficiencyThreshold));
+    /**
+     * 记录复习结果
+     */
+    @PostMapping("/review")
+    public ResponseEntity<WordLearningProgress> recordReview(
+            @RequestParam String userId,
+            @RequestParam ObjectId wordId,
+            @RequestParam boolean remembered) {
+        WordLearningProgress progress = learningProgressService.recordReviewResult(userId, wordId, remembered);
+        if (progress == null) {
+            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+        }
+        return new ResponseEntity<>(progress, HttpStatus.OK);
     }
 
-    @PostMapping("/update/{userId}/{wordId}")
-    public ResponseEntity<?> updateProgress(
-            @PathVariable String userId,
-            @PathVariable String wordId,
-            @RequestParam double proficiency) {
-        return ResponseEntity.ok(progressService.updateWordProgress(userId, wordId, proficiency));
+    /**
+     * 获取今日需要复习的单词
+     */
+    @GetMapping("/today-review")
+    public ResponseEntity<List<WordLearningProgress>> getTodayReviewWords(
+            @RequestParam String userId,
+            @RequestParam(required = false) ObjectId bookId) {
+        List<WordLearningProgress> words = bookId != null ?
+                learningProgressService.getTodayReviewWordsForBook(userId, bookId) :
+                learningProgressService.getTodayReviewWords(userId);
+        return new ResponseEntity<>(words, HttpStatus.OK);
     }
 
-    @GetMapping("/review/{userId}")
-    public ResponseEntity<?> getWordsForReview(
-            @PathVariable String userId,
-            @RequestParam(defaultValue = "0.7") double proficiencyThreshold,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date lastReviewBefore) {
-        return ResponseEntity.ok(progressService.getWordsNeedingReview(userId, proficiencyThreshold, lastReviewBefore));
+    /**
+     * 获取待复习单词数量
+     */
+    @GetMapping("/overdue-count")
+    public ResponseEntity<Map<String, Long>> getOverdueReviewCount(
+            @RequestParam String userId,
+            @RequestParam(required = false) ObjectId bookId) {
+        long count = bookId != null ?
+                learningProgressService.getOverdueReviewCountForBook(userId, bookId) :
+                learningProgressService.getOverdueReviewCount(userId);
+        Map<String, Long> response = new HashMap<>();
+        response.put("count", count);
+        return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @GetMapping("/mastered/{userId}")
-    public ResponseEntity<?> getMasteredWords(
-            @PathVariable String userId,
-            @RequestParam(defaultValue = "0.9") double masteryThreshold) {
-        return ResponseEntity.ok(progressService.getMasteredWords(userId, masteryThreshold));
+    /**
+     * 获取用户总体学习统计信息
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<WordLearningProgressService.UserLearningStats> getUserStats(
+            @RequestParam String userId) {
+        WordLearningProgressService.UserLearningStats stats =
+                learningProgressService.getUserStats(userId);
+        return new ResponseEntity<>(stats, HttpStatus.OK);
     }
 
-    @GetMapping("/average/{userId}")
-    public ResponseEntity<?> getAverageProficiency(@PathVariable String userId) {
-        return ResponseEntity.ok(progressService.calculateAverageProficiency(userId));
+    /**
+     * 获取词书的学习统计信息
+     */
+    @GetMapping("/book/{bookId}/stats")
+    public ResponseEntity<WordLearningProgressService.BookLearningStats> getBookStats(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        WordLearningProgressService.BookLearningStats stats =
+                learningProgressService.getBookStats(userId, bookId);
+        return new ResponseEntity<>(stats, HttpStatus.OK);
     }
 
-    @PostMapping("/batch/{userId}")
-    public ResponseEntity<?> getProgressForWords(
-            @PathVariable String userId,
-            @RequestBody List<String> wordIds) {
-        return ResponseEntity.ok(progressService.getProgressForWords(userId, wordIds));
+    /**
+     * 获取词书中需要复习的单词
+     */
+    @GetMapping("/book/{bookId}/review")
+    public ResponseEntity<List<WordLearningProgress>> getBookReviewWords(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        List<WordLearningProgress> words = learningProgressService.getBookReviewWords(userId, bookId);
+        return new ResponseEntity<>(words, HttpStatus.OK);
+    }
+
+    /**
+     * 获取词书中所有单词的学习进度
+     */
+    @GetMapping("/book/{bookId}/progress")
+    public ResponseEntity<List<WordLearningProgress>> getBookProgress(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        List<WordLearningProgress> progress =
+                learningProgressService.getProgressForBook(userId, bookId);
+        return new ResponseEntity<>(progress, HttpStatus.OK);
+    }
+
+    /**
+     * 获取单个单词的学习进度
+     */
+    @GetMapping("/progress/{wordId}")
+    public ResponseEntity<WordLearningProgress> getWordProgress(
+            @RequestParam String userId,
+            @PathVariable ObjectId wordId) {
+        return learningProgressService.getWordProgress(userId, wordId)
+                .map(progress -> new ResponseEntity<>(progress, HttpStatus.OK))
+                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    }
+
+    /**
+     * 批量获取单词学习进度
+     */
+    @PostMapping("/progress/batch")
+    public ResponseEntity<List<WordLearningProgress>> getProgressBatch(
+            @RequestParam String userId,
+            @RequestBody List<ObjectId> wordIds) {
+        List<WordLearningProgress> progress =
+                learningProgressService.getProgressForWords(userId, wordIds);
+        return new ResponseEntity<>(progress, HttpStatus.OK);
+    }
+
+    /**
+     * 异常处理
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException e) {
+        Map<String, String> response = new HashMap<>();
+        response.put("error", e.getMessage());
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
 }

@@ -180,8 +180,11 @@ public class UserWordbookService {
         Query query = new Query(Criteria.where("_id").is(id).and("createUser").is(userId));
         Update update = new Update().addToSet("words").each(wordIds.toArray());
 
+        // 创建选项对象并设置返回更新后的文档
+        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+
         return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, Document.class, "user_wordbooks"))
+                        mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks"))
                 .map(document -> document.entrySet().stream()
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
@@ -193,8 +196,11 @@ public class UserWordbookService {
         Query query = new Query(Criteria.where("_id").is(id).and("createUser").is(userId));
         Update update = new Update().pullAll("words", wordIds.toArray());
 
+        // 创建选项对象并设置返回更新后的文档
+        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+
         return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, Document.class, "user_wordbooks"))
+                        mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks"))
                 .map(document -> document.entrySet().stream()
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }

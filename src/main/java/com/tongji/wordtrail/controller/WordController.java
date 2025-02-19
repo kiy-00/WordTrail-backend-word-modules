@@ -123,4 +123,19 @@ public class WordController {
             return ResponseEntity.badRequest().build();
         }
     }
+
+    /**
+     * 获取用于混淆的相似单词
+     * 返回4个与目标单词相似的单词ID，这些单词来自系统词库
+     */
+    @GetMapping("/{id}/confusion-options")
+    public ResponseEntity<List<String>> getConfusionOptions(@PathVariable String id) {
+        try {
+            List<String> confusionWordIds = wordService.generateConfusionOptions(id);
+            return ResponseEntity.ok(confusionWordIds);
+        } catch (Exception e) {
+            log.error("Error generating confusion options for word {}: ", id, e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }

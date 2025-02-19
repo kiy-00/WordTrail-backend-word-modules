@@ -1,33 +1,53 @@
 package com.tongji.wordtrail.model;
 
-import lombok.Data;
-import org.bson.types.ObjectId;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import lombok.Data;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 @Document(collection = "learning_records")
 public class LearningRecord {
     @Id
-    private ObjectId id;
+    private String id;  // 改为String类型
 
-    private ObjectId userId;
+    private String userId;  // 改为String类型，存储UUID
     private Date date;
-    private String type;    // "learn" 或 "review"
-    private int count;      // 学习或复习的单词数量
-    private Date createTime;
+    private String type;  // "learn" or "review"
+    private Integer count;
+    private List<WordLearningDetail> words;
 
-    public LearningRecord() {
-        this.createTime = new Date();
-        this.date = new Date();
-    }
+    // Constructors
+    public LearningRecord() {}
 
-    public LearningRecord(ObjectId userId, String type, int count) {
-        this();
+    public LearningRecord(String userId, Date date, String type, Integer count, List<WordLearningDetail> words) {
         this.userId = userId;
+        this.date = date;
         this.type = type;
         this.count = count;
+        this.words = words;
+    }
+
+    // Helper methods
+    public void addWordDetail(WordLearningDetail detail) {
+        this.words.add(detail);
+        this.count = this.words.size();
+    }
+
+    public boolean isSuccessful() {
+        if (words == null || words.isEmpty()) {
+            return false;
+        }
+        return words.stream().allMatch(word -> word.getResult());
+    }
+
+    public double getSuccessRate() {
+        if (words == null || words.isEmpty()) {
+            return 0.0;
+        }
+        long successCount = words.stream().filter(word -> word.getResult()).count();
+        return (double) successCount / words.size();
     }
 }

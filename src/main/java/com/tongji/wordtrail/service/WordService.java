@@ -225,4 +225,54 @@ public class WordService {
         }
         return isValid;
     }
+
+    public List<String> generateConfusionOptions(String wordId) {
+        // 1. 获取目标单词
+        Map<String, Object> targetWord = getWord(wordId)
+                .orElseThrow(() -> new IllegalArgumentException("Word not found"));
+
+        // 2. 构建查询条件来找到相似的单词
+        // 可以基于以下几个特征来构建相似性：
+        // - 单词长度相近（比如相差不超过2个字母）
+        // - 相同词性
+        // - 相似的难度级别
+        // - 相同的词根词缀
+        // - 相似的音标
+        Query query = new Query();
+        query.addCriteria(Criteria.where("_id").ne(wordId)); // 排除目标单词自身
+
+        // 添加相似性条件
+        if (targetWord.containsKey("length")) {
+            int length = (int) targetWord.get("length");
+            query.addCriteria(Criteria.where("length")
+                    .gte(length - 2)
+                    .lte(length + 2));
+        }
+        if (targetWord.containsKey("pos")) {
+            query.addCriteria(Criteria.where("pos").is(targetWord.get("pos")));
+        }
+        if (targetWord.containsKey("difficulty")) {
+            query.addCriteria(Criteria.where("difficulty").is(targetWord.get("difficulty")));
+        }
+
+        // 3. 随机获取4个符合条件的单词
+        List<Map> similarWords = mongoTemplate.find(query, Map.class, "words");
+
+        // 4. 如果找到的单词不够4个，放宽条件重新查询
+        if (similarWords.size() < 4) {
+            query = new Query();
+            query.addCriteria(Criteria.where("_id").ne(wordId));
+            if (targetWord.containsKey("difficulty")) {
+                query.addCriteria(Criteria.where("difficulty").is(targetWord.get("difficulty")));
+            }
+            similarWords = mongoTemplate.find(query, Map.class, "words");
+        }
+
+        // 5. 随机选择4个单词
+        Collections.shuffle(similarWords);
+        return similarWords.stream()
+                .limit(4)
+                .map(word -> word.get("_id").toString())
+                .collect(Collectors.toList());
+    }
 }

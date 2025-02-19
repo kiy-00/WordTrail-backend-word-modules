@@ -1,121 +1,239 @@
 package com.tongji.wordtrail.service;
 
 import com.tongji.wordtrail.model.WordLearningProgress;
+import com.tongji.wordtrail.model.SystemWordbook;
+import com.tongji.wordtrail.model.UserWordbook;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
-import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
-/**
- * 单词学习进度服务
- * 管理用户的单词学习进度,包括进度查询、更新和统计等功能
- */
 @Service
 public class WordLearningProgressService {
 
     private final MongoTemplate mongoTemplate;
+    private static final int[] REVIEW_INTERVALS = {1, 2, 4, 7, 15, 30};
 
     @Autowired
     public WordLearningProgressService(MongoTemplate mongoTemplate) {
         this.mongoTemplate = mongoTemplate;
     }
 
-    /**
-     * 获取用户特定单词的学习进度
-     */
-    public Optional<WordLearningProgress> getWordProgress(String userId, String wordId) {
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId))
-                .and("wordId").is(new ObjectId(wordId)));
-        WordLearningProgress result = mongoTemplate.findOne(query, WordLearningProgress.class);
-        return Optional.ofNullable(result);
+    public WordLearningProgress startLearningWord(String userId, ObjectId wordId) {
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").is(wordId));
+
+        WordLearningProgress progress = mongoTemplate.findOne(query, WordLearningProgress.class);
+        if (progress == null) {
+            progress = new WordLearningProgress(userId, wordId);
+            progress = mongoTemplate.save(progress);
+        }
+        return progress;
     }
 
-    /**
-     * 获取用户所有低于指定熟练度阈值的单词进度
-     */
-    public List<WordLearningProgress> getUserWordProgress(String userId, double proficiencyThreshold) {
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId))
-                .and("proficiency").lte(proficiencyThreshold));
-        return mongoTemplate.find(query, WordLearningProgress.class);
-    }
+    public WordLearningProgress recordReviewResult(String userId, ObjectId wordId, boolean remembered) {
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").is(wordId));
 
-    /**
-     * 更新用户的单词学习进度
-     */
-    public WordLearningProgress updateWordProgress(String userId, String wordId, double proficiency) {
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId))
-                .and("wordId").is(new ObjectId(wordId)));
-
-        Update update = new Update()
-                .set("proficiency", proficiency)
-                .set("lastReviewTime", new Date());
-
-        return mongoTemplate.findAndModify(
-                query,
-                update,
-                org.springframework.data.mongodb.core.FindAndModifyOptions.options().upsert(true).returnNew(true),
-                WordLearningProgress.class
-        );
-    }
-
-    /**
-     * 获取需要复习的单词列表
-     */
-    public List<WordLearningProgress> getWordsNeedingReview(String userId,
-                                                            double proficiencyThreshold,
-                                                            Date lastReviewBefore) {
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId))
-                .and("proficiency").lt(proficiencyThreshold)
-                .and("lastReviewTime").lt(lastReviewBefore));
-
-        return mongoTemplate.find(query, WordLearningProgress.class);
-    }
-
-    /**
-     * 获取用户已掌握的单词列表
-     */
-    public List<WordLearningProgress> getMasteredWords(String userId, double masteryThreshold) {
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId))
-                .and("proficiency").gte(masteryThreshold));
-        return mongoTemplate.find(query, WordLearningProgress.class);
-    }
-
-    /**
-     * 计算用户的平均熟练度
-     */
-    public double calculateAverageProficiency(String userId) {
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId)));
-        List<WordLearningProgress> progressList = mongoTemplate.find(query, WordLearningProgress.class);
-
-        if (progressList.isEmpty()) {
-            return 0.0;
+        WordLearningProgress progress = mongoTemplate.findOne(query, WordLearningProgress.class);
+        if (progress == null) {
+            return null;
         }
 
-        double totalProficiency = progressList.stream()
-                .mapToDouble(WordLearningProgress::getProficiency)
-                .sum();
+        progress.addReviewHistory(remembered);
 
-        return totalProficiency / progressList.size();
+        if (remembered) {
+            if (progress.getReviewStage() < REVIEW_INTERVALS.length - 1) {
+                progress.setReviewStage(progress.getReviewStage() + 1);
+            }
+            progress.setProficiency(calculateNewProficiency(progress.getProficiency(), true));
+        } else {
+            if (progress.getReviewStage() > 0) {
+                progress.setReviewStage(progress.getReviewStage() - 1);
+            }
+            progress.setProficiency(calculateNewProficiency(progress.getProficiency(), false));
+        }
+
+        Date nextReview = calculateNextReviewTime(progress.getLastReviewTime(),
+                REVIEW_INTERVALS[progress.getReviewStage()]);
+        progress.setNextReviewTime(nextReview);
+
+        return mongoTemplate.save(progress);
     }
 
-    /**
-     * 批量获取单词的学习进度
-     */
-    public List<WordLearningProgress> getProgressForWords(String userId, List<String> wordIds) {
-        List<ObjectId> objectIds = wordIds.stream()
-                .map(ObjectId::new)
-                .collect(Collectors.toList());  // 替换 toList()
+    public List<WordLearningProgress> getTodayReviewWords(String userId) {
+        Date today = new Date();
+        Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
+        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
-        Query query = new Query(Criteria.where("userId").is(new ObjectId(userId))
-                .and("wordId").in(objectIds));
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+
         return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
+    public List<WordLearningProgress> getTodayReviewWordsForBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Date today = new Date();
+        Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
+        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+
+        return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
+    public long getOverdueReviewCount(String userId) {
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("nextReviewTime").lte(new Date()));
+
+        return mongoTemplate.count(query, WordLearningProgress.class);
+    }
+
+    public long getOverdueReviewCountForBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("nextReviewTime").lte(new Date()));
+
+        return mongoTemplate.count(query, WordLearningProgress.class);
+    }
+
+    public UserLearningStats getUserStats(String userId) {
+        Query query = new Query(Criteria.where("userId").is(userId));
+        List<WordLearningProgress> allProgress = mongoTemplate.find(query, WordLearningProgress.class);
+
+        UserLearningStats stats = new UserLearningStats();
+        stats.setTotalWords(allProgress.size());
+        stats.setMasteredWords((int) allProgress.stream()
+                .filter(p -> p.getProficiency() >= 0.9).count());
+        stats.setLearningWords((int) allProgress.stream()
+                .filter(p -> p.getProficiency() > 0 && p.getProficiency() < 0.9).count());
+        stats.setAverageProficiency(allProgress.stream()
+                .mapToDouble(WordLearningProgress::getProficiency)
+                .average().orElse(0.0));
+
+        return stats;
+    }
+
+    public BookLearningStats getBookStats(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds));
+        List<WordLearningProgress> bookProgress = mongoTemplate.find(query, WordLearningProgress.class);
+
+        BookLearningStats stats = new BookLearningStats();
+        stats.setTotalWords(bookWordIds.size());
+        stats.setLearnedWords(bookProgress.size());
+        stats.setMasteredWords((int) bookProgress.stream()
+                .filter(p -> p.getProficiency() >= 0.9).count());
+        stats.setLearningWords((int) bookProgress.stream()
+                .filter(p -> p.getProficiency() > 0 && p.getProficiency() < 0.9).count());
+        stats.setAverageProficiency(bookProgress.stream()
+                .mapToDouble(WordLearningProgress::getProficiency)
+                .average().orElse(0.0));
+
+        return stats;
+    }
+
+    public Optional<WordLearningProgress> getWordProgress(String userId, ObjectId wordId) {
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").is(wordId));
+        return Optional.ofNullable(mongoTemplate.findOne(query, WordLearningProgress.class));
+    }
+
+    public List<WordLearningProgress> getProgressForWords(String userId, List<ObjectId> wordIds) {
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(wordIds));
+        return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
+    public List<WordLearningProgress> getProgressForBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+        return getProgressForWords(userId, bookWordIds);
+    }
+
+    public List<WordLearningProgress> getBookReviewWords(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("nextReviewTime").lte(new Date()));
+
+        return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
+    private double calculateNewProficiency(double currentProficiency, boolean remembered) {
+        if (remembered) {
+            return Math.min(1.0, currentProficiency + 0.1);
+        } else {
+            return Math.max(0.0, currentProficiency - 0.1);
+        }
+    }
+
+    private Date calculateNextReviewTime(Date lastReviewTime, int intervalDays) {
+        return new Date(lastReviewTime.getTime() + intervalDays * 24 * 60 * 60 * 1000);
+    }
+
+    private List<ObjectId> getBookWordIds(ObjectId bookId) {
+        Query systemQuery = new Query(Criteria.where("_id").is(bookId));
+        SystemWordbook systemBook = mongoTemplate.findOne(systemQuery, SystemWordbook.class);
+        if (systemBook != null) {
+            return systemBook.getWords();
+        }
+
+        UserWordbook userBook = mongoTemplate.findOne(systemQuery, UserWordbook.class);
+        if (userBook != null) {
+            return userBook.getWords();
+        }
+
+        throw new IllegalArgumentException("Wordbook not found: " + bookId);
+    }
+
+    // 内部类保持不变，因为它们不涉及 userId
+    public static class UserLearningStats {
+        private int totalWords;
+        private int masteredWords;
+        private int learningWords;
+        private double averageProficiency;
+
+        public int getTotalWords() { return totalWords; }
+        public void setTotalWords(int totalWords) { this.totalWords = totalWords; }
+        public int getMasteredWords() { return masteredWords; }
+        public void setMasteredWords(int masteredWords) { this.masteredWords = masteredWords; }
+        public int getLearningWords() { return learningWords; }
+        public void setLearningWords(int learningWords) { this.learningWords = learningWords; }
+        public double getAverageProficiency() { return averageProficiency; }
+        public void setAverageProficiency(double averageProficiency) { this.averageProficiency = averageProficiency; }
+    }
+
+    public static class BookLearningStats {
+        private int totalWords;
+        private int learnedWords;
+        private int masteredWords;
+        private int learningWords;
+        private double averageProficiency;
+
+        public int getTotalWords() { return totalWords; }
+        public void setTotalWords(int totalWords) { this.totalWords = totalWords; }
+        public int getLearnedWords() { return learnedWords; }
+        public void setLearnedWords(int learnedWords) { this.learnedWords = learnedWords; }
+        public int getMasteredWords() { return masteredWords; }
+        public void setMasteredWords(int masteredWords) { this.masteredWords = masteredWords; }
+        public int getLearningWords() { return learningWords; }
+        public void setLearningWords(int learningWords) { this.learningWords = learningWords; }
+        public double getAverageProficiency() { return averageProficiency; }
+        public void setAverageProficiency(double averageProficiency) { this.averageProficiency = averageProficiency; }
     }
 }

@@ -1,22 +1,32 @@
 package com.tongji.wordtrail.repository;
 
 import com.tongji.wordtrail.model.LearningRecord;
-import org.bson.types.ObjectId;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
+import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
 
-public interface LearningRecordRepository extends MongoRepository<LearningRecord, ObjectId> {
-    List<LearningRecord> findByUserIdOrderByDateDesc(ObjectId userId);
+@Repository
+public interface LearningRecordRepository extends MongoRepository<LearningRecord, String> {  // 改为String
 
-    @Query("{'userId': ?0, 'date': {'$gte': ?1, '$lte': ?2}}")
-    List<LearningRecord> findByUserIdAndDateBetween(ObjectId userId, Date startDate, Date endDate);
+    List<LearningRecord> findByUserIdAndDateBetweenOrderByDateDesc(
+            String userId, Date startDate, Date endDate);
 
-    @Query("{'userId': ?0, 'date': ?1}")
-    List<LearningRecord> findByUserIdAndDate(ObjectId userId, Date date);
+    Page<LearningRecord> findByUserIdAndDateBetweenOrderByDateDesc(
+            String userId, Date startDate, Date endDate, Pageable pageable);
 
-    @Query(value = "{'userId': ?0}", count = true)
-    long countByUserId(ObjectId userId);
+    @Query(value = "{'userId': ?0, 'date': {'$gte': ?1, '$lte': ?2}}",
+            count = true)
+    long countByUserIdAndDateBetween(String userId, Date startDate, Date endDate);
+
+    Page<LearningRecord> findByUserIdOrderByDateDesc(String userId, Pageable pageable);
+
+    @Query(value = "{'userId': ?0, 'date': {'$gte': ?1, '$lte': ?2}}",
+            fields = "{'words.result': 1}")
+    List<LearningRecord> findLearningResultsByUserIdAndDateBetween(
+            String userId, Date startDate, Date endDate);
 }

@@ -1,44 +1,49 @@
 package com.tongji.wordtrail.model;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.index.CompoundIndex;
-import org.springframework.data.mongodb.core.index.CompoundIndexes;
-import org.springframework.data.mongodb.core.index.Indexed;
-import org.springframework.data.mongodb.core.mapping.Document;
 import org.bson.types.ObjectId;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 @Document(collection = "word_learning_progress")
-@CompoundIndexes({
-        @CompoundIndex(name = "userId_wordId_idx", def = "{'userId': 1, 'wordId': 1}", unique = true),
-        @CompoundIndex(name = "userId_proficiency_idx", def = "{'userId': 1, 'proficiency': 1}")
-})
 public class WordLearningProgress {
     @Id
+    @JsonSerialize(using = ToStringSerializer.class)
     private ObjectId id;
 
-    @Indexed
-    private ObjectId userId;
+    private String userId;
 
+    @JsonSerialize(using = ToStringSerializer.class)
     private ObjectId wordId;
 
     private double proficiency;
-
     private Date lastReviewTime;
+    private Date firstLearnTime;
+    private Date nextReviewTime;
+    private int reviewStage;
+    private List<ReviewRecord> reviewHistory;
 
-    // Default constructor
     public WordLearningProgress() {
+        this.proficiency = 0.0;
+        this.reviewStage = 0;
+        this.reviewHistory = new ArrayList<>();
     }
 
-    // Constructor with fields
-    public WordLearningProgress(ObjectId userId, ObjectId wordId, double proficiency, Date lastReviewTime) {
+    public WordLearningProgress(String userId, ObjectId wordId) {
+        this();
         this.userId = userId;
         this.wordId = wordId;
-        this.proficiency = proficiency;
-        this.lastReviewTime = lastReviewTime;
+        this.firstLearnTime = new Date();
+        this.lastReviewTime = new Date();
+        this.nextReviewTime = new Date();
     }
 
-    // Getters and Setters
+    // Getter and Setter methods
     public ObjectId getId() {
         return id;
     }
@@ -47,11 +52,11 @@ public class WordLearningProgress {
         this.id = id;
     }
 
-    public ObjectId getUserId() {
+    public String getUserId() {
         return userId;
     }
 
-    public void setUserId(ObjectId userId) {
+    public void setUserId(String userId) {
         this.userId = userId;
     }
 
@@ -79,14 +84,74 @@ public class WordLearningProgress {
         this.lastReviewTime = lastReviewTime;
     }
 
-    @Override
-    public String toString() {
-        return "WordLearningProgress{" +
-                "id=" + id +
-                ", userId=" + userId +
-                ", wordId=" + wordId +
-                ", proficiency=" + proficiency +
-                ", lastReviewTime=" + lastReviewTime +
-                '}';
+    public Date getFirstLearnTime() {
+        return firstLearnTime;
+    }
+
+    public void setFirstLearnTime(Date firstLearnTime) {
+        this.firstLearnTime = firstLearnTime;
+    }
+
+    public Date getNextReviewTime() {
+        return nextReviewTime;
+    }
+
+    public void setNextReviewTime(Date nextReviewTime) {
+        this.nextReviewTime = nextReviewTime;
+    }
+
+    public int getReviewStage() {
+        return reviewStage;
+    }
+
+    public void setReviewStage(int reviewStage) {
+        this.reviewStage = reviewStage;
+    }
+
+    public List<ReviewRecord> getReviewHistory() {
+        return reviewHistory;
+    }
+
+    public void setReviewHistory(List<ReviewRecord> reviewHistory) {
+        this.reviewHistory = reviewHistory;
+    }
+
+    public void addReviewHistory(boolean remembered) {
+        ReviewRecord record = new ReviewRecord(new Date(), remembered);
+        if (this.reviewHistory == null) {
+            this.reviewHistory = new ArrayList<>();
+        }
+        this.reviewHistory.add(record);
+        this.lastReviewTime = record.getReviewTime();
+    }
+
+    // 内部类：复习记录
+    public static class ReviewRecord {
+        private Date reviewTime;
+        private boolean remembered;
+
+        public ReviewRecord() {
+        }
+
+        public ReviewRecord(Date reviewTime, boolean remembered) {
+            this.reviewTime = reviewTime;
+            this.remembered = remembered;
+        }
+
+        public Date getReviewTime() {
+            return reviewTime;
+        }
+
+        public void setReviewTime(Date reviewTime) {
+            this.reviewTime = reviewTime;
+        }
+
+        public boolean isRemembered() {
+            return remembered;
+        }
+
+        public void setRemembered(boolean remembered) {
+            this.remembered = remembered;
+        }
     }
 }
