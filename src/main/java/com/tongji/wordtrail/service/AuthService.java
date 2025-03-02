@@ -3,12 +3,14 @@ package com.tongji.wordtrail.service;
 import com.tongji.wordtrail.dto.AuthResponse;
 import com.tongji.wordtrail.dto.LoginRequest;
 import com.tongji.wordtrail.dto.RegisterRequest;
+import com.tongji.wordtrail.dto.UserDetailsResponse;
 import com.tongji.wordtrail.model.User;  // 确保正确导入 User 类
 import com.tongji.wordtrail.repository.UserRepository;
 import com.tongji.wordtrail.util.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -98,5 +100,28 @@ public class AuthService {
                     logger.error("User not found: {}", request.getUsername());
                     return new RuntimeException("User not found");
                 });
+    }
+
+    /**
+     * Retrieves user details by userId
+     *
+     * @param userId the unique identifier of the user
+     * @return UserDetailsResponse containing the user information
+     * @throws UsernameNotFoundException if the user with the given id is not found
+     */
+    public UserDetailsResponse getUserDetails(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
+
+        return UserDetailsResponse.builder()
+                .userId(user.getUserId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .avatarUrl(user.getAvatarUrl())
+                .active(user.isActive())
+                .createTime(user.getCreateTime())
+                .updateTime(user.getUpdateTime())
+                .build();
     }
 }

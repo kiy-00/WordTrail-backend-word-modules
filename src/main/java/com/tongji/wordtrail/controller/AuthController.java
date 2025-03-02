@@ -3,6 +3,7 @@ package com.tongji.wordtrail.controller;
 import com.tongji.wordtrail.dto.AuthResponse;
 import com.tongji.wordtrail.dto.LoginRequest;
 import com.tongji.wordtrail.dto.RegisterRequest;
+import com.tongji.wordtrail.dto.UserDetailsResponse;
 import com.tongji.wordtrail.service.AuthService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +47,21 @@ public class AuthController {
         } catch (Exception e) {
             logger.error("Login failed for username: {}. Error: {}",
                     request.getUsername(), e.getMessage(), e);
+            throw e;
+        }
+    }
+
+    @GetMapping("/user/{userId}")
+    public ResponseEntity<UserDetailsResponse> getUserDetails(@PathVariable String userId) {
+        logger.info("Received request to get user details for userId: {}", userId);
+        try {
+            UserDetailsResponse response = authService.getUserDetails(userId);
+            logger.info("Successfully retrieved user details. UserId: {}, Username: {}",
+                    userId, response.getUsername());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Failed to retrieve user details for userId: {}. Error: {}",
+                    userId, e.getMessage(), e);
             throw e;
         }
     }
