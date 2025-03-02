@@ -148,4 +148,17 @@ public class UserWordbookController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    @GetMapping("/by-language/{language}/approved")
+    public ResponseEntity<List<Map<String, Object>>> getApprovedPublicWordbooksByLanguage(
+            @PathVariable String language) {
+        try {
+            log.info("Fetching approved public wordbooks by language: {}", language);
+            List<Map<String, Object>> wordbooks = userWordbookService.getApprovedPublicWordbooksByLanguage(language);
+            return ResponseEntity.ok(wordbooks);
+        } catch (Exception e) {
+            log.error("Error fetching approved public wordbooks by language: {}", language, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

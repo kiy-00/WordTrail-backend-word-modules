@@ -1,5 +1,6 @@
 package com.tongji.wordtrail.service;
 
+import com.tongji.wordtrail.model.UserWordbook;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -397,5 +398,34 @@ public class UserWordbookService {
                 .collect(Collectors.toList());
 
         return new PageImpl<>(wordbooks, pageRequest, total);
+    }
+
+    /**
+     * 根据语言获取已审核的公开词书（不包含单词列表）
+     */
+    public List<Map<String, Object>> getApprovedPublicWordbooksByLanguage(String language) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("language").is(language));
+        query.addCriteria(Criteria.where("isPublic").is(true));
+        query.addCriteria(Criteria.where("status").is("approved"));
+
+        List<UserWordbook> wordbooks = mongoTemplate.find(query, UserWordbook.class, "user_wordbooks");
+
+        return wordbooks.stream()
+                .map(wordbook -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", wordbook.getId().toString());
+                    map.put("language", wordbook.getLanguage());
+                    map.put("bookName", wordbook.getBookName());
+                    map.put("description", wordbook.getDescription());
+                    map.put("createUser", wordbook.getCreateUser());
+                    map.put("isPublic", wordbook.isPublic());
+                    map.put("status", wordbook.getStatus());
+                    map.put("tags", wordbook.getTags());
+                    map.put("createTime", wordbook.getCreateTime());
+                    // 不包含单词列表
+                    return map;
+                })
+                .collect(Collectors.toList());
     }
 }
