@@ -1,5 +1,7 @@
 package com.tongji.wordtrail.service;
 
+import com.tongji.wordtrail.model.SystemWordbook;
+import com.tongji.wordtrail.repository.SystemWordbookRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -24,20 +26,51 @@ public class SystemWordbookService {
 
     private final MongoTemplate mongoTemplate;
     private final WordService wordService;
+    private final SystemWordbookRepository systemWordbookRepository;
 
     @Autowired
-    public SystemWordbookService(MongoTemplate mongoTemplate, WordService wordService) {
+    public SystemWordbookService(MongoTemplate mongoTemplate, WordService wordService, SystemWordbookRepository systemWordbookRepository) {
         this.mongoTemplate = mongoTemplate;
         this.wordService = wordService;
+        this.systemWordbookRepository = systemWordbookRepository;
     }
 
     /**
      * 获取系统词书
      */
     public Optional<Map<String, Object>> getSystemWordbook(String id) {
-        return Optional.ofNullable(mongoTemplate.findById(id, Document.class, "system_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        try {
+            ObjectId objectId = new ObjectId(id);
+            return Optional.ofNullable(mongoTemplate.findById(objectId, Document.class, "system_wordbooks"))
+                    .map(document -> {
+                        Map<String, Object> result = new HashMap<>();
+
+                        // 处理_id字段，转换为字符串
+                        result.put("id", document.getObjectId("_id").toString());
+
+                        // 复制其他普通字段
+                        result.put("language", document.getString("language"));
+                        result.put("bookName", document.getString("bookName"));
+                        result.put("description", document.getString("description"));
+                        result.put("createUser", document.getString("createUser"));
+
+                        // 处理words字段，确保ObjectId列表被正确转换
+                        List<ObjectId> words = (List<ObjectId>) document.get("words");
+                        if (words != null) {
+                            List<String> wordIds = words.stream()
+                                    .map(ObjectId::toString)
+                                    .collect(Collectors.toList());
+                            result.put("words", wordIds);
+                        } else {
+                            result.put("words", Collections.emptyList());
+                        }
+
+                        return result;
+                    });
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
+        }
     }
 
     public Page<Map<String, Object>> getSystemWordbooks(
@@ -209,5 +242,21 @@ public class SystemWordbookService {
             return wordService.getWords(queryParams);
         }
         return Collections.emptyList();  // 替换 List.of()
+    }
+
+    public List<Map<String, Object>> getSystemWordbooksByLanguage(String language) {
+        List<SystemWordbook> wordbooks = systemWordbookRepository.findByLanguage(language);
+        return wordbooks.stream()
+                .map(wordbook -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", wordbook.getId().toString());
+                    map.put("language", wordbook.getLanguage());
+                    map.put("bookName", wordbook.getBookName());
+                    map.put("description", wordbook.getDescription());
+                    map.put("createUser", wordbook.getCreateUser());
+                    // 不包含单词列表
+                    return map;
+                })
+                .collect(Collectors.toList());
     }
 }

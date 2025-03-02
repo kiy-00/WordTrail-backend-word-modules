@@ -122,4 +122,17 @@ public class SystemWordbookController {
     public ResponseEntity<List<Map<String, Object>>> getWordbookWords(@PathVariable String id) {
         return ResponseEntity.ok(systemWordbookService.getWordbookWords(id));
     }
+
+    @GetMapping("/by-language/{language}")
+    public ResponseEntity<List<Map<String, Object>>> getWordbooksByLanguage(
+            @PathVariable String language) {
+        try {
+            log.info("Fetching wordbooks by language: {}", language);
+            List<Map<String, Object>> wordbooks = systemWordbookService.getSystemWordbooksByLanguage(language);
+            return ResponseEntity.ok(wordbooks);
+        } catch (Exception e) {
+            log.error("Error fetching wordbooks by language: {}", language, e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
 }
