@@ -172,4 +172,30 @@ public class WordLearningProgressController {
         List<String> newWords = learningProgressService.getNewWordsFromBook(userId, bookId, batchSize);
         return new ResponseEntity<>(newWords, HttpStatus.OK);
     }
+
+    /**
+     * 获取词书中未学习的单词总数
+     */
+    @GetMapping("/book/{bookId}/new-words-count")
+    public ResponseEntity<Map<String, Integer>> getNewWordsCountFromBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        int count = learningProgressService.getNewWordsCountFromBook(userId, bookId);
+        Map<String, Integer> response = new HashMap<>();
+        response.put("count", count);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    /**
+     * 获取指定词书中今天需要复习的单词数量
+     */
+    @GetMapping("/book/{bookId}/today-review-count")
+    public ResponseEntity<Map<String, Integer>> getTodayReviewWordsCountForBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        int count = learningProgressService.getTodayReviewWordsCountForBook(userId, bookId);
+        Map<String, Integer> response = new HashMap<>();
+        response.put("count", count);
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
 }

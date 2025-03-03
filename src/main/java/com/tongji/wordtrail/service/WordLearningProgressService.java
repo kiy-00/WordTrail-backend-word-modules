@@ -261,4 +261,52 @@ public class WordLearningProgressService {
 
         return newWordIds;
     }
+
+    /**
+     * 获取词书中未学习单词的总数
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 未学习单词数量
+     */
+    public int getNewWordsCountFromBook(String userId, ObjectId bookId) {
+        // 获取词书中所有的单词ID
+        List<ObjectId> allBookWordIds = getBookWordIds(bookId);
+
+        // 查询用户已经学习过的单词
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(allBookWordIds));
+        List<WordLearningProgress> learnedWords = mongoTemplate.find(query, WordLearningProgress.class);
+
+        // 提取已学习单词的ID
+        List<ObjectId> learnedWordIds = learnedWords.stream()
+                .map(WordLearningProgress::getWordId)
+                .collect(Collectors.toList());
+
+        // 计算未学习的单词数量（Java 8写法）
+        long count = allBookWordIds.stream()
+                .filter(wordId -> !learnedWordIds.contains(wordId))
+                .count();
+
+        return (int) count;
+    }
+
+    /**
+     * 获取指定词书中今天需要复习的单词数量
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 今天需要复习的单词数量
+     */
+    public int getTodayReviewWordsCountForBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Date today = new Date();
+        Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
+        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+
+        return (int) mongoTemplate.count(query, WordLearningProgress.class);
+    }
 }
