@@ -160,4 +160,16 @@ public class WordLearningProgressController {
         response.put("error", e.getMessage());
         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
     }
+
+    /**
+     * 获取词书中未学习的单词
+     */
+    @GetMapping("/book/{bookId}/new-words")
+    public ResponseEntity<List<String>> getNewWordsFromBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId,
+            @RequestParam int batchSize) {
+        List<String> newWords = learningProgressService.getNewWordsFromBook(userId, bookId, batchSize);
+        return new ResponseEntity<>(newWords, HttpStatus.OK);
+    }
 }

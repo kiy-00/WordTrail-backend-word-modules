@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class WordLearningProgressService {
@@ -235,5 +236,29 @@ public class WordLearningProgressService {
         public void setLearningWords(int learningWords) { this.learningWords = learningWords; }
         public double getAverageProficiency() { return averageProficiency; }
         public void setAverageProficiency(double averageProficiency) { this.averageProficiency = averageProficiency; }
+    }
+
+    public List<String> getNewWordsFromBook(String userId, ObjectId bookId, int batchSize) {
+        // 获取词书中所有的单词ID
+        List<ObjectId> allBookWordIds = getBookWordIds(bookId);
+
+        // 查询用户已经学习过的单词
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(allBookWordIds));
+        List<WordLearningProgress> learnedWords = mongoTemplate.find(query, WordLearningProgress.class);
+
+        // 提取已学习单词的ID
+        List<ObjectId> learnedWordIds = learnedWords.stream()
+                .map(WordLearningProgress::getWordId)
+                .collect(Collectors.toList());
+
+        // 过滤出未学习的单词，并转换为字符串ID
+        List<String> newWordIds = allBookWordIds.stream()
+                .filter(wordId -> !learnedWordIds.contains(wordId))
+                .limit(batchSize)
+                .map(ObjectId::toString)
+                .collect(Collectors.toList());
+
+        return newWordIds;
     }
 }
