@@ -233,15 +233,26 @@ public class SystemWordbookService {
      * 获取词书中的所有单词
      */
     public List<Map<String, Object>> getWordbookWords(String wordbookId) {
+        log.info("Fetching words for wordbook ID: {}", wordbookId);
+
         Optional<Map<String, Object>> wordbook = getSystemWordbook(wordbookId);
-        if (wordbook.isPresent()) {
-            @SuppressWarnings("unchecked")
-            List<String> wordIds = (List<String>) wordbook.get().get("words");
-            Map<String, String> queryParams = new HashMap<>();
-            queryParams.put("_id", String.join(",", wordIds));
-            return wordService.getWords(queryParams);
+        if (!wordbook.isPresent()) {
+            log.warn("Wordbook not found with ID: {}", wordbookId);
+            return Collections.emptyList();
         }
-        return Collections.emptyList();  // 替换 List.of()
+
+        @SuppressWarnings("unchecked")
+        List<String> wordIds = (List<String>) wordbook.get().get("words");
+
+        if (wordIds == null || wordIds.isEmpty()) {
+            log.info("Wordbook {} has no words", wordbookId);
+            return Collections.emptyList();
+        }
+
+        log.info("Found {} word IDs in wordbook {}", wordIds.size(), wordbookId);
+
+        // 直接传递单词ID列表，而不是用逗号连接
+        return wordService.getWordsByIds(wordIds);
     }
 
     public List<Map<String, Object>> getSystemWordbooksByLanguage(String language) {

@@ -202,6 +202,54 @@ public class WordLearningProgressService {
         throw new IllegalArgumentException("Wordbook not found: " + bookId);
     }
 
+    /**
+     * 获取指定词书中模糊的单词（熟练度 >= 0.5 且 < 0.8）
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 模糊单词的学习进度列表
+     */
+    public List<WordLearningProgress> getFuzzyWordsFromBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("proficiency").gte(0.5).lt(0.8));
+
+        return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
+    /**
+     * 获取指定词书中熟悉的单词（熟练度 >= 0.8 且 <= 1）
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 熟悉单词的学习进度列表
+     */
+    public List<WordLearningProgress> getFamiliarWordsFromBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("proficiency").gte(0.8).lte(1.0));
+
+        return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
+    /**
+     * 获取指定词书中未学习的单词（熟练度 = 0）
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 未学习单词的学习进度列表
+     */
+    public List<WordLearningProgress> getUnlearnedWordsFromBook(String userId, ObjectId bookId) {
+        List<ObjectId> bookWordIds = getBookWordIds(bookId);
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(bookWordIds)
+                .and("proficiency").is(0.0));
+
+        return mongoTemplate.find(query, WordLearningProgress.class);
+    }
+
     // 内部类保持不变，因为它们不涉及 userId
     public static class UserLearningStats {
         private int totalWords;

@@ -2,6 +2,7 @@ package com.tongji.wordtrail.controller;
 
 import com.tongji.wordtrail.service.WordService;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -36,19 +37,17 @@ public class WordController {
     @GetMapping
     public ResponseEntity<List<Map<String, Object>>> getWords(
             @RequestParam(required = false) Map<String, String> queryParams) {
-        log.debug("Received query params: {}", queryParams); // 添加日志
+        log.debug("Received query params: {}", queryParams);
 
         List<Map<String, Object>> results;
         if (queryParams.containsKey("ids")) {
-            // 如果查询参数中包含ids，调用getWordsByIds方法
             List<String> ids = Arrays.asList(queryParams.get("ids").split(","));
             results = wordService.getWordsByIds(ids);
         } else {
-            // 否则，调用getWords方法
             results = wordService.getWords(queryParams);
         }
 
-        log.debug("Query results: {}", results); // 添加日志
+        log.debug("Query results: {}", results);
         return ResponseEntity.ok(results);
     }
 
@@ -64,7 +63,6 @@ public class WordController {
             return ResponseEntity.badRequest().build();
         }
     }
-
 
     @GetMapping("/page")
     public ResponseEntity<Page<Map<String, Object>>> getWordsWithPagination(
@@ -124,10 +122,6 @@ public class WordController {
         }
     }
 
-    /**
-     * 获取用于混淆的相似单词
-     * 返回4个与目标单词相似的单词ID，这些单词来自系统词库
-     */
     @GetMapping("/{id}/confusion-options")
     public ResponseEntity<List<String>> getConfusionOptions(@PathVariable String id) {
         try {
@@ -135,6 +129,58 @@ public class WordController {
             return ResponseEntity.ok(confusionWordIds);
         } catch (Exception e) {
             log.error("Error generating confusion options for word {}: ", id, e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+    //下面这三个接口是错的，具体原因是什么我也不知道
+
+    /**
+     * 获取词书中熟练度模糊的单词（0.5 <= proficiency < 0.8）
+     */
+    @GetMapping("/book/{bookId}/fuzzy-words-detail")
+    public ResponseEntity<List<Map<String, Object>>> getFuzzyWordsDetailFromBook(
+            @RequestParam String userId,
+            @PathVariable String bookId) {
+        try {
+            List<Map<String, Object>> fuzzyWords =
+                    wordService.getFuzzyWordsFromBook(userId, bookId);
+            return ResponseEntity.ok(fuzzyWords);
+        } catch (Exception e) {
+            log.error("Error getting fuzzy words from book: ", e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 获取词书中熟悉的单词（0.8 <= proficiency <= 1）
+     */
+    @GetMapping("/book/{bookId}/familiar-words-detail")
+    public ResponseEntity<List<Map<String, Object>>> getFamiliarWordsDetailFromBook(
+            @RequestParam String userId,
+            @PathVariable String bookId) {
+        try {
+            List<Map<String, Object>> familiarWords =
+                    wordService.getFamiliarWordsFromBook(userId, bookId);
+            return ResponseEntity.ok(familiarWords);
+        } catch (Exception e) {
+            log.error("Error getting familiar words from book: ", e);
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    /**
+     * 获取词书中未学习的单词（proficiency = 0）
+     */
+    @GetMapping("/book/{bookId}/unlearned-words-detail")
+    public ResponseEntity<List<Map<String, Object>>> getUnlearnedWordsDetailFromBook(
+            @RequestParam String userId,
+            @PathVariable String bookId) {
+        try {
+            List<Map<String, Object>> unlearnedWords =
+                    wordService.getUnlearnedWordsFromBook(userId, bookId);
+            return ResponseEntity.ok(unlearnedWords);
+        } catch (Exception e) {
+            log.error("Error getting unlearned words from book: ", e);
             return ResponseEntity.badRequest().build();
         }
     }

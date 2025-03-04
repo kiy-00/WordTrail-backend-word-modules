@@ -2,6 +2,7 @@ package com.tongji.wordtrail.service;
 
 import com.mongodb.client.result.DeleteResult;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -273,6 +274,81 @@ public class WordService {
         return similarWords.stream()
                 .limit(4)
                 .map(word -> word.get("_id").toString())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取词书中熟练度模糊的单词（0.5 <= proficiency < 0.8）
+     */
+    public List<Map<String, Object>> getFuzzyWordsFromBook(String userId, String bookId) {
+        // 查询学习进度
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("bookId").is(bookId)
+                .and("proficiency").gte(0.5).lt(0.8));
+
+        List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
+
+        // 提取wordId列表
+        List<ObjectId> wordIds = learningProgressList.stream()
+                .map(doc -> (ObjectId) doc.get("wordId"))
+                .collect(Collectors.toList());
+
+        // 查询单词详情
+        Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
+        return mongoTemplate.find(wordQuery, Document.class, "word")
+                .stream()
+                .map(document -> document.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取词书中熟悉的单词（0.8 <= proficiency <= 1）
+     */
+    public List<Map<String, Object>> getFamiliarWordsFromBook(String userId, String bookId) {
+        // 查询学习进度
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("bookId").is(bookId)
+                .and("proficiency").gte(0.8).lte(1.0));
+
+        List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
+
+        // 提取wordId列表
+        List<ObjectId> wordIds = learningProgressList.stream()
+                .map(doc -> (ObjectId) doc.get("wordId"))
+                .collect(Collectors.toList());
+
+        // 查询单词详情
+        Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
+        return mongoTemplate.find(wordQuery, Document.class, "word")
+                .stream()
+                .map(document -> document.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取词书中未学习的单词（proficiency = 0）
+     */
+    public List<Map<String, Object>> getUnlearnedWordsFromBook(String userId, String bookId) {
+        // 查询学习进度
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("bookId").is(bookId)
+                .and("proficiency").is(0.0));
+
+        List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
+
+        // 提取wordId列表
+        List<ObjectId> wordIds = learningProgressList.stream()
+                .map(doc -> (ObjectId) doc.get("wordId"))
+                .collect(Collectors.toList());
+
+        // 查询单词详情
+        Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
+        return mongoTemplate.find(wordQuery, Document.class, "word")
+                .stream()
+                .map(document -> document.entrySet().stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
                 .collect(Collectors.toList());
     }
 }

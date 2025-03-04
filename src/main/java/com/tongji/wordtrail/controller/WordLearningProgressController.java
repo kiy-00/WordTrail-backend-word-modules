@@ -198,4 +198,40 @@ public class WordLearningProgressController {
         response.put("count", count);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
+    /**
+     * 获取词书中熟练度模糊的单词（0.5 <= proficiency < 0.8）
+     */
+    @GetMapping("/book/{bookId}/fuzzy-words")
+    public ResponseEntity<List<WordLearningProgress>> getFuzzyWordsFromBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        List<WordLearningProgress> fuzzyWords =
+                learningProgressService.getFuzzyWordsFromBook(userId, bookId);
+        return new ResponseEntity<>(fuzzyWords, HttpStatus.OK);
+    }
+
+    /**
+     * 获取词书中熟悉的单词（0.8 <= proficiency <= 1）
+     */
+    @GetMapping("/book/{bookId}/familiar-words")
+    public ResponseEntity<List<WordLearningProgress>> getFamiliarWordsFromBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        List<WordLearningProgress> familiarWords =
+                learningProgressService.getFamiliarWordsFromBook(userId, bookId);
+        return new ResponseEntity<>(familiarWords, HttpStatus.OK);
+    }
+
+    /**
+     * 获取词书中未学习的单词（proficiency = 0）
+     */
+    @GetMapping("/book/{bookId}/unlearned-words")
+    public ResponseEntity<List<WordLearningProgress>> getUnlearnedWordsFromBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        List<WordLearningProgress> unlearnedWords =
+                learningProgressService.getUnlearnedWordsFromBook(userId, bookId);
+        return new ResponseEntity<>(unlearnedWords, HttpStatus.OK);
+    }
 }
