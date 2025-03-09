@@ -3,6 +3,7 @@ package com.tongji.wordtrail.service;
 import com.tongji.wordtrail.model.UserWordbook;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -33,38 +34,84 @@ public class UserWordbookService {
     }
 
     /**
+     * 工具方法：将 Document 转换为 Map，将 _id 转换为 id 字符串
+     */
+    private Map<String, Object> convertDocumentToMap(Document document) {
+        if (document == null) {
+            return null;
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<String, Object> entry : document.entrySet()) {
+            if (entry.getKey().equals("_id")) {
+                // 将 _id 转换为字符串，并重命名为 id
+                result.put("id", entry.getValue().toString());
+            } else {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 工具方法：将 Document 列表转换为 Map 列表，将 _id 转换为 id 字符串
+     */
+    private List<Map<String, Object>> convertDocumentsToMaps(List<Document> documents) {
+        if (documents == null) {
+            return new ArrayList<>();
+        }
+
+        return documents.stream()
+                .map(this::convertDocumentToMap)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * 获取用户词书
      */
     public Optional<Map<String, Object>> getUserWordbook(String id) {
-        return Optional.ofNullable(mongoTemplate.findById(id, Document.class, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Document document = mongoTemplate.findById(objectId, Document.class, "user_wordbooks");
+            return Optional.ofNullable(document)
+                    .map(this::convertDocumentToMap);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
+        }
     }
 
     /**
      * 分页获取用户的词书列表
      */
-    public Page<Map<String, Object>> getUserWordbooks(
-            String userId,
-            int page,
-            int size,
-            Map<String, String> filters) {
-        Query query = new Query(Criteria.where("createUser").is(userId))
-                .with(PageRequest.of(page, size));
+    public Page<Map<String, Object>> getUserWordbooks(String userId, int page, int size, Map<String, String> filters) {
+        // 1. 创建干净的过滤条件
+        Map<String, String> cleanFilters = filters != null ? new HashMap<>(filters) : new HashMap<>();
+        cleanFilters.remove("page");
+        cleanFilters.remove("size");
 
-        // 添加其他过滤条件
-        filters.entrySet().stream()
+        // 2. 构建基本查询
+        Query query = new Query(Criteria.where("createUser").is(userId));
+
+        // 3. 添加其他过滤条件
+        cleanFilters.entrySet().stream()
                 .filter(entry -> StringUtils.hasText(entry.getValue()))
                 .forEach(entry -> query.addCriteria(
                         Criteria.where(entry.getKey()).is(entry.getValue())
                 ));
 
+        // 4. 计算总记录数
         long total = mongoTemplate.count(query, "user_wordbooks");
-        List<Map<String, Object>> wordbooks = mongoTemplate.find(query, Document.class, "user_wordbooks")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+
+        // 5. 添加明确的排序条件
+        query.with(Sort.by(Sort.Direction.DESC, "createTime"));
+
+        // 6. 添加分页
+        query.with(PageRequest.of(page, size));
+
+        // 7. 执行查询
+        List<Document> documents = mongoTemplate.find(query, Document.class, "user_wordbooks");
+        List<Map<String, Object>> wordbooks = convertDocumentsToMaps(documents);
 
         return new PageImpl<>(wordbooks, PageRequest.of(page, size), total);
     }
@@ -87,44 +134,78 @@ public class UserWordbookService {
             throw new IllegalArgumentException("Cannot have more than 5 tags");
         }
 
+        // 如果有id字段，处理为_id (MongoDB格式)
+        if (wordbookData.containsKey("id")) {
+            Object idValue = wordbookData.remove("id");
+            try {
+                if (idValue instanceof String) {
+                    wordbookData.put("_id", new ObjectId((String) idValue));
+                } else {
+                    wordbookData.put("_id", idValue);
+                }
+            } catch (IllegalArgumentException e) {
+                log.warn("Invalid ObjectId format for id: {}, will be auto-generated", idValue);
+            }
+        }
+
         Document doc = new Document(wordbookData);
-        return Optional.ofNullable(mongoTemplate.save(doc, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .orElseThrow(() -> new RuntimeException("Failed to create user wordbook"));
+        Document savedDocument = mongoTemplate.save(doc, "user_wordbooks");
+
+        if (savedDocument == null) {
+            throw new RuntimeException("Failed to create user wordbook");
+        }
+
+        return convertDocumentToMap(savedDocument);
     }
 
     /**
      * 更新用户词书
      */
     public Optional<Map<String, Object>> updateUserWordbook(String id, String userId, Map<String, Object> updateData) {
-        // 验证所有权
-        Query query = new Query(Criteria.where("_id").is(id).and("createUser").is(userId));
-        if (!mongoTemplate.exists(query, "user_wordbooks")) {
+        try {
+            ObjectId objectId = new ObjectId(id);
+
+            // 验证所有权
+            Query query = new Query(Criteria.where("_id").is(objectId).and("createUser").is(userId));
+            if (!mongoTemplate.exists(query, "user_wordbooks")) {
+                return Optional.empty();
+            }
+
+            Update update = new Update();
+
+            // 移除保护字段和id字段
+            updateData.remove("id");
+            updateData.remove("_id");
+            updateData.remove("createUser");
+            updateData.remove("createTime");
+            updateData.remove("status");
+
+            // 应用其他更新
+            updateData.forEach(update::set);
+
+            FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+
+            Document updatedDocument = mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks");
+            return Optional.ofNullable(updatedDocument)
+                    .map(this::convertDocumentToMap);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
             return Optional.empty();
         }
-
-        Update update = new Update();
-        updateData.forEach((key, value) -> {
-            if (!key.equals("createUser") && !key.equals("createTime") && !key.equals("status")) {
-                update.set(key, value);
-            }
-        });
-
-        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
-
-        return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     /**
      * 删除用户词书
      */
     public boolean deleteUserWordbook(String id, String userId) {
-        Query query = new Query(Criteria.where("_id").is(id).and("createUser").is(userId));
-        return mongoTemplate.remove(query, "user_wordbooks").getDeletedCount() > 0;
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId).and("createUser").is(userId));
+            return mongoTemplate.remove(query, "user_wordbooks").getDeletedCount() > 0;
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return false;
+        }
     }
 
     /**
@@ -135,16 +216,21 @@ public class UserWordbookService {
             throw new IllegalArgumentException("Invalid status");
         }
 
-        Query query = new Query(Criteria.where("_id").is(id));
-        Update update = new Update().set("status", status);
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId));
+            Update update = new Update().set("status", status);
 
-        // 创建选项对象，设置返回更新后的文档
-        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+            // 创建选项对象，设置返回更新后的文档
+            FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
 
-        return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            Document updatedDocument = mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks");
+            return Optional.ofNullable(updatedDocument)
+                    .map(this::convertDocumentToMap);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
+        }
     }
 
     /**
@@ -156,11 +242,8 @@ public class UserWordbookService {
                 .with(PageRequest.of(page, size));
 
         long total = mongoTemplate.count(query, "user_wordbooks");
-        List<Map<String, Object>> wordbooks = mongoTemplate.find(query, Document.class, "user_wordbooks")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+        List<Document> documents = mongoTemplate.find(query, Document.class, "user_wordbooks");
+        List<Map<String, Object>> wordbooks = convertDocumentsToMaps(documents);
 
         return new PageImpl<>(wordbooks, PageRequest.of(page, size), total);
     }
@@ -169,76 +252,88 @@ public class UserWordbookService {
      * 添加单词到词书
      */
     public Optional<Map<String, Object>> addWordsToWordbook(String id, String userId, List<String> wordIds) {
-        // 验证所有单词是否存在
-        Map<String, String> queryParams = new HashMap<>();
-        queryParams.put("_id", String.join(",", wordIds));
-        List<Map<String, Object>> words = wordService.getWords(queryParams);
+        try {
+            // 验证所有单词是否存在 - 使用正确的方法
+            List<Map<String, Object>> words = wordService.getWordsByIds(wordIds);
 
-        if (words.size() != wordIds.size()) {
-            throw new RuntimeException("Some words do not exist");
+            if (words.size() != wordIds.size()) {
+                log.error("Some words do not exist. Requested IDs: {}, Found words: {}", wordIds, words.size());
+                throw new RuntimeException("Some words do not exist");
+            }
+
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId).and("createUser").is(userId));
+            Update update = new Update().addToSet("words").each(wordIds.toArray());
+
+            // 创建选项对象并设置返回更新后的文档
+            FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+
+            Document updatedDocument = mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks");
+            return Optional.ofNullable(updatedDocument)
+                    .map(this::convertDocumentToMap);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
         }
-
-        Query query = new Query(Criteria.where("_id").is(id).and("createUser").is(userId));
-        Update update = new Update().addToSet("words").each(wordIds.toArray());
-
-        // 创建选项对象并设置返回更新后的文档
-        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
-
-        return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
     }
 
     /**
      * 从词书中移除单词
      */
     public Optional<Map<String, Object>> removeWordsFromWordbook(String id, String userId, List<String> wordIds) {
-        Query query = new Query(Criteria.where("_id").is(id).and("createUser").is(userId));
-        Update update = new Update().pullAll("words", wordIds.toArray());
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId).and("createUser").is(userId));
+            Update update = new Update().pullAll("words", wordIds.toArray());
 
-        // 创建选项对象并设置返回更新后的文档
-        FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
+            // 创建选项对象并设置返回更新后的文档
+            FindAndModifyOptions options = FindAndModifyOptions.options().returnNew(true);
 
-        return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            Document updatedDocument = mongoTemplate.findAndModify(query, update, options, Document.class, "user_wordbooks");
+            return Optional.ofNullable(updatedDocument)
+                    .map(this::convertDocumentToMap);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
+        }
     }
 
     /**
      * 获取词书中的所有单词
      */
     public List<Map<String, Object>> getWordbookWords(String id, String userId) {
-        Query query = new Query(Criteria.where("_id").is(id));
-        if (userId != null) {
-            query.addCriteria(Criteria.where("createUser").is(userId));
-        }
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId));
 
-        Optional<Map<String, Object>> wordbook = Optional.ofNullable(
-                        mongoTemplate.findOne(query, Document.class, "user_wordbooks"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            if (userId != null) {
+                query.addCriteria(Criteria.where("createUser").is(userId));
+            }
 
-        if (wordbook.isPresent()) {
+            Document wordbookDocument = mongoTemplate.findOne(query, Document.class, "user_wordbooks");
+            if (wordbookDocument == null) {
+                return Collections.emptyList();
+            }
+
+            Map<String, Object> wordbook = convertDocumentToMap(wordbookDocument);
+
             @SuppressWarnings("unchecked")
-            List<String> wordIds = (List<String>) wordbook.get().get("words");
+            List<String> wordIds = (List<String>) wordbook.get("words");
+            if (wordIds == null || wordIds.isEmpty()) {
+                return Collections.emptyList();
+            }
+
             Map<String, String> queryParams = new HashMap<>();
-            queryParams.put("_id", String.join(",", wordIds));
+            queryParams.put("id", String.join(",", wordIds));  // 使用 id 而不是 _id
             return wordService.getWords(queryParams);
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Collections.emptyList();
         }
-        return Collections.emptyList();
     }
 
     /**
      * 搜索词书
-     * @param keyword 搜索关键词 (搜索书名和描述)
-     * @param tags 标签列表
-     * @param onlyPublic 是否只搜索公开词书
-     * @param status 词书状态过滤 (可选)
-     * @param page 页码
-     * @param size 每页大小
-     * @return 分页的词书列表
      */
     public Page<Map<String, Object>> searchWordbooks(
             String keyword,
@@ -287,21 +382,14 @@ public class UserWordbookService {
 
         // 执行查询
         long total = mongoTemplate.count(query, "user_wordbooks");
-        List<Map<String, Object>> wordbooks = mongoTemplate.find(query, Document.class, "user_wordbooks")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+        List<Document> documents = mongoTemplate.find(query, Document.class, "user_wordbooks");
+        List<Map<String, Object>> wordbooks = convertDocumentsToMaps(documents);
 
         return new PageImpl<>(wordbooks, pageRequest, total);
     }
 
     /**
      * 高级搜索词书
-     * @param searchParams 搜索参数
-     * @param page 页码
-     * @param size 每页大小
-     * @return 分页的词书列表
      */
     public Page<Map<String, Object>> advancedSearch(
             Map<String, Object> searchParams,
@@ -391,11 +479,8 @@ public class UserWordbookService {
 
         // 执行查询
         long total = mongoTemplate.count(query, "user_wordbooks");
-        List<Map<String, Object>> wordbooks = mongoTemplate.find(query, Document.class, "user_wordbooks")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+        List<Document> documents = mongoTemplate.find(query, Document.class, "user_wordbooks");
+        List<Map<String, Object>> wordbooks = convertDocumentsToMaps(documents);
 
         return new PageImpl<>(wordbooks, pageRequest, total);
     }
@@ -409,23 +494,7 @@ public class UserWordbookService {
         query.addCriteria(Criteria.where("isPublic").is(true));
         query.addCriteria(Criteria.where("status").is("approved"));
 
-        List<UserWordbook> wordbooks = mongoTemplate.find(query, UserWordbook.class, "user_wordbooks");
-
-        return wordbooks.stream()
-                .map(wordbook -> {
-                    Map<String, Object> map = new HashMap<>();
-                    map.put("id", wordbook.getId().toString());
-                    map.put("language", wordbook.getLanguage());
-                    map.put("bookName", wordbook.getBookName());
-                    map.put("description", wordbook.getDescription());
-                    map.put("createUser", wordbook.getCreateUser());
-                    map.put("isPublic", wordbook.isPublic());
-                    map.put("status", wordbook.getStatus());
-                    map.put("tags", wordbook.getTags());
-                    map.put("createTime", wordbook.getCreateTime());
-                    // 不包含单词列表
-                    return map;
-                })
-                .collect(Collectors.toList());
+        List<Document> documents = mongoTemplate.find(query, Document.class, "user_wordbooks");
+        return convertDocumentsToMaps(documents);
     }
 }

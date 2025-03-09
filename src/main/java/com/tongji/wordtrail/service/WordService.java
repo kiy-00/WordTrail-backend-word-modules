@@ -36,21 +36,89 @@ public class WordService {
     }
 
     /**
-     * 获取单词
+     * 工具方法：将 Document 转换为 Map，处理 _id 字段并重命名为 id
      */
-    public Optional<Map<String, Object>> getWord(String id) {
-        return Optional.ofNullable(mongoTemplate.findById(id, Document.class, "words"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+    private Map<String, Object> convertDocumentToMap(Document document) {
+        if (document == null) {
+            return null;
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        for (Map.Entry<String, Object> entry : document.entrySet()) {
+            if (entry.getKey().equals("_id")) {
+                // 将 _id 转换为字符串，并重命名为 id
+                if (entry.getValue() instanceof ObjectId) {
+                    result.put("id", ((ObjectId) entry.getValue()).toString());
+                } else {
+                    // 如果不是 ObjectId 类型，尝试创建 ObjectId 或直接转字符串
+                    try {
+                        result.put("id", new ObjectId(entry.getValue().toString()).toString());
+                    } catch (Exception e) {
+                        result.put("id", entry.getValue().toString());
+                    }
+                }
+            } else {
+                result.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return result;
     }
 
-    public List<Map<String, Object>> getWordsByIds(List<String> ids) {
-        Query query = new Query(Criteria.where("_id").in(ids));
-        return mongoTemplate.find(query, Document.class, "words")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
+    /**
+     * 工具方法：将 Document 列表转换为 Map 列表，处理 _id 字段并重命名为 id
+     */
+    private List<Map<String, Object>> convertDocumentsToMaps(List<Document> documents) {
+        if (documents == null) {
+            return new ArrayList<>();
+        }
+
+        return documents.stream()
+                .map(this::convertDocumentToMap)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取单词 - 确保返回的 id 是 ObjectId 的字符串形式
+     */
+    public Optional<Map<String, Object>> getWord(String id) {
+        try {
+            // 将字符串 id 转换为 ObjectId
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId));
+
+            Document document = mongoTemplate.findOne(query, Document.class, "words");
+
+            if (document == null) {
+                return Optional.empty();
+            }
+
+            return Optional.of(convertDocumentToMap(document));
+        } catch (IllegalArgumentException e) {
+            // 处理无效的 ObjectId 格式
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 批量获取单词 - 确保返回的 id 是 ObjectId 的字符串形式
+     */
+    public List<Map<String, Object>> getWordsByIds(List<String> ids) {
+        try {
+            // 将字符串 id 列表转换为 ObjectId 列表
+            List<ObjectId> objectIds = ids.stream()
+                    .map(ObjectId::new)
+                    .collect(Collectors.toList());
+
+            Query query = new Query(Criteria.where("_id").in(objectIds));
+            List<Document> documents = mongoTemplate.find(query, Document.class, "words");
+
+            return convertDocumentsToMaps(documents);
+        } catch (IllegalArgumentException e) {
+            // 处理无效的 ObjectId 格式
+            log.error("Invalid ObjectId format in ids list", e);
+            return new ArrayList<>();
+        }
     }
 
     /**
@@ -66,10 +134,8 @@ public class WordService {
                         Criteria.where(entry.getKey()).is(entry.getValue())
                 ));
 
-        return mongoTemplate.find(query, Document.class, "words").stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+        List<Document> documents = mongoTemplate.find(query, Document.class, "words");
+        return convertDocumentsToMaps(documents);
     }
 
     /**
@@ -79,57 +145,108 @@ public class WordService {
         Query query = new Query().with(PageRequest.of(page, size));
         long total = mongoTemplate.count(query, "words");
 
-        List<Map<String, Object>> words = mongoTemplate.find(query, Document.class, "words").stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+        List<Document> documents = mongoTemplate.find(query, Document.class, "words");
+        List<Map<String, Object>> words = convertDocumentsToMaps(documents);
 
         return new PageImpl<>(words, PageRequest.of(page, size), total);
     }
+
     /**
      * 保存单词数据
      */
     public Map<String, Object> saveWord(Map<String, Object> wordData) {
+        // 如果入参中有 id 字段，将其转换为 _id
+        if (wordData.containsKey("id")) {
+            Object idValue = wordData.remove("id");
+            if (idValue instanceof String) {
+                try {
+                    wordData.put("_id", new ObjectId((String) idValue));
+                } catch (IllegalArgumentException e) {
+                    // 如果不是有效的 ObjectId，则忽略
+                    log.warn("Invalid ObjectId format for id: {}", idValue);
+                }
+            } else {
+                wordData.put("_id", idValue);
+            }
+        }
+
         Document doc = new Document(wordData);
-        return Optional.ofNullable(mongoTemplate.save(doc, "words"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .orElseThrow(() -> new RuntimeException("Failed to save word"));
+        Document savedDocument = mongoTemplate.save(doc, "words");
+
+        if (savedDocument == null) {
+            throw new RuntimeException("Failed to save word");
+        }
+
+        return convertDocumentToMap(savedDocument);
     }
+
     /**
      * 批量保存单词
      */
     public List<Map<String, Object>> saveWords(List<Map<String, Object>> wordsData) {
-        return wordsData.stream()
-                .map(data -> new Document(data))
+        List<Document> savedDocuments = wordsData.stream()
+                .map(data -> {
+                    // 如果有 id 字段，转换为 _id
+                    if (data.containsKey("id")) {
+                        Object idValue = data.remove("id");
+                        if (idValue instanceof String) {
+                            try {
+                                data.put("_id", new ObjectId((String) idValue));
+                            } catch (IllegalArgumentException e) {
+                                log.warn("Invalid ObjectId format for id: {}", idValue);
+                            }
+                        } else {
+                            data.put("_id", idValue);
+                        }
+                    }
+                    return new Document(data);
+                })
                 .map(doc -> mongoTemplate.save(doc, "words"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
                 .collect(Collectors.toList());
+
+        return convertDocumentsToMaps(savedDocuments);
     }
 
     /**
      * 更新单词
      */
     public Optional<Map<String, Object>> updateWord(String id, Map<String, Object> updateData) {
-        Query query = new Query(Criteria.where("_id").is(id));
-        Update update = new Update();
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId));
+            Update update = new Update();
 
-        updateData.forEach(update::set); // 使用 update.set 方法更新字段
+            // 检查是否存在 id 字段，如果有则移除，避免更新主键
+            updateData.remove("id");
+            updateData.remove("_id");
 
-        return Optional.ofNullable(
-                        mongoTemplate.findAndModify(query, update, Document.class, "words"))
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+            updateData.forEach(update::set); // 使用 update.set 方法更新字段
+
+            Document updated = mongoTemplate.findAndModify(query, update, Document.class, "words");
+            if (updated == null) {
+                return Optional.empty();
+            }
+
+            return Optional.of(convertDocumentToMap(updated));
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return Optional.empty();
+        }
     }
 
     /**
      * 删除单词
      */
     public boolean deleteWord(String id) {
-        Query query = new Query(Criteria.where("_id").is(id));
-        DeleteResult result = mongoTemplate.remove(query, "words");
-        return result.getDeletedCount() > 0;
+        try {
+            ObjectId objectId = new ObjectId(id);
+            Query query = new Query(Criteria.where("_id").is(objectId));
+            DeleteResult result = mongoTemplate.remove(query, "words");
+            return result.getDeletedCount() > 0;
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", id, e);
+            return false;
+        }
     }
 
     /**
@@ -227,128 +344,160 @@ public class WordService {
         return isValid;
     }
 
+    /**
+     * 生成混淆选项
+     */
     public List<String> generateConfusionOptions(String wordId) {
         // 1. 获取目标单词
         Map<String, Object> targetWord = getWord(wordId)
                 .orElseThrow(() -> new IllegalArgumentException("Word not found"));
 
         // 2. 构建查询条件来找到相似的单词
-        // 可以基于以下几个特征来构建相似性：
-        // - 单词长度相近（比如相差不超过2个字母）
-        // - 相同词性
-        // - 相似的难度级别
-        // - 相同的词根词缀
-        // - 相似的音标
-        Query query = new Query();
-        query.addCriteria(Criteria.where("_id").ne(wordId)); // 排除目标单词自身
+        try {
+            ObjectId objectId = new ObjectId(wordId);
+            Query query = new Query();
+            query.addCriteria(Criteria.where("_id").ne(objectId)); // 排除目标单词自身
 
-        // 添加相似性条件
-        if (targetWord.containsKey("length")) {
-            int length = (int) targetWord.get("length");
-            query.addCriteria(Criteria.where("length")
-                    .gte(length - 2)
-                    .lte(length + 2));
-        }
-        if (targetWord.containsKey("pos")) {
-            query.addCriteria(Criteria.where("pos").is(targetWord.get("pos")));
-        }
-        if (targetWord.containsKey("difficulty")) {
-            query.addCriteria(Criteria.where("difficulty").is(targetWord.get("difficulty")));
-        }
-
-        // 3. 随机获取4个符合条件的单词
-        List<Map> similarWords = mongoTemplate.find(query, Map.class, "words");
-
-        // 4. 如果找到的单词不够4个，放宽条件重新查询
-        if (similarWords.size() < 4) {
-            query = new Query();
-            query.addCriteria(Criteria.where("_id").ne(wordId));
+            // 添加相似性条件
+            if (targetWord.containsKey("length")) {
+                int length = (int) targetWord.get("length");
+                query.addCriteria(Criteria.where("length")
+                        .gte(length - 2)
+                        .lte(length + 2));
+            }
+            if (targetWord.containsKey("pos")) {
+                query.addCriteria(Criteria.where("pos").is(targetWord.get("pos")));
+            }
             if (targetWord.containsKey("difficulty")) {
                 query.addCriteria(Criteria.where("difficulty").is(targetWord.get("difficulty")));
             }
-            similarWords = mongoTemplate.find(query, Map.class, "words");
-        }
 
-        // 5. 随机选择4个单词
-        Collections.shuffle(similarWords);
-        return similarWords.stream()
-                .limit(4)
-                .map(word -> word.get("_id").toString())
-                .collect(Collectors.toList());
+            // 3. 随机获取4个符合条件的单词
+            List<Document> documents = mongoTemplate.find(query, Document.class, "words");
+            List<Map<String, Object>> similarWords = convertDocumentsToMaps(documents);
+
+            // 4. 如果找到的单词不够4个，放宽条件重新查询
+            if (similarWords.size() < 4) {
+                query = new Query();
+                query.addCriteria(Criteria.where("_id").ne(objectId));
+                if (targetWord.containsKey("difficulty")) {
+                    query.addCriteria(Criteria.where("difficulty").is(targetWord.get("difficulty")));
+                }
+                documents = mongoTemplate.find(query, Document.class, "words");
+                similarWords = convertDocumentsToMaps(documents);
+            }
+
+            // 5. 随机选择4个单词
+            Collections.shuffle(similarWords);
+            return similarWords.stream()
+                    .limit(4)
+                    .map(word -> word.get("id").toString())
+                    .collect(Collectors.toList());
+        } catch (IllegalArgumentException e) {
+            log.error("Invalid ObjectId format: {}", wordId, e);
+            return new ArrayList<>();
+        }
     }
 
     /**
      * 获取词书中熟练度模糊的单词（0.5 <= proficiency < 0.8）
      */
     public List<Map<String, Object>> getFuzzyWordsFromBook(String userId, String bookId) {
-        // 查询学习进度
-        Query query = new Query(Criteria.where("userId").is(userId)
-                .and("bookId").is(bookId)
-                .and("proficiency").gte(0.5).lt(0.8));
+        try {
+            // 查询学习进度
+            Query query = new Query(Criteria.where("userId").is(userId)
+                    .and("bookId").is(bookId)
+                    .and("proficiency").gte(0.5).lt(0.8));
 
-        List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
+            List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
 
-        // 提取wordId列表
-        List<ObjectId> wordIds = learningProgressList.stream()
-                .map(doc -> (ObjectId) doc.get("wordId"))
-                .collect(Collectors.toList());
+            // 提取wordId列表
+            List<ObjectId> wordIds = learningProgressList.stream()
+                    .map(doc -> doc.get("wordId"))
+                    .filter(id -> id instanceof ObjectId)
+                    .map(id -> (ObjectId) id)
+                    .collect(Collectors.toList());
 
-        // 查询单词详情
-        Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
-        return mongoTemplate.find(wordQuery, Document.class, "word")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+            if (wordIds.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // 查询单词详情
+            Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
+            List<Document> wordDocuments = mongoTemplate.find(wordQuery, Document.class, "words");
+
+            return convertDocumentsToMaps(wordDocuments);
+        } catch (Exception e) {
+            log.error("Error getting fuzzy words from book: ", e);
+            return new ArrayList<>();
+        }
     }
 
     /**
      * 获取词书中熟悉的单词（0.8 <= proficiency <= 1）
      */
     public List<Map<String, Object>> getFamiliarWordsFromBook(String userId, String bookId) {
-        // 查询学习进度
-        Query query = new Query(Criteria.where("userId").is(userId)
-                .and("bookId").is(bookId)
-                .and("proficiency").gte(0.8).lte(1.0));
+        try {
+            // 查询学习进度
+            Query query = new Query(Criteria.where("userId").is(userId)
+                    .and("bookId").is(bookId)
+                    .and("proficiency").gte(0.8).lte(1.0));
 
-        List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
+            List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
 
-        // 提取wordId列表
-        List<ObjectId> wordIds = learningProgressList.stream()
-                .map(doc -> (ObjectId) doc.get("wordId"))
-                .collect(Collectors.toList());
+            // 提取wordId列表
+            List<ObjectId> wordIds = learningProgressList.stream()
+                    .map(doc -> doc.get("wordId"))
+                    .filter(id -> id instanceof ObjectId)
+                    .map(id -> (ObjectId) id)
+                    .collect(Collectors.toList());
 
-        // 查询单词详情
-        Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
-        return mongoTemplate.find(wordQuery, Document.class, "word")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+            if (wordIds.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // 查询单词详情
+            Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
+            List<Document> wordDocuments = mongoTemplate.find(wordQuery, Document.class, "words");
+
+            return convertDocumentsToMaps(wordDocuments);
+        } catch (Exception e) {
+            log.error("Error getting familiar words from book: ", e);
+            return new ArrayList<>();
+        }
     }
 
     /**
      * 获取词书中未学习的单词（proficiency = 0）
      */
     public List<Map<String, Object>> getUnlearnedWordsFromBook(String userId, String bookId) {
-        // 查询学习进度
-        Query query = new Query(Criteria.where("userId").is(userId)
-                .and("bookId").is(bookId)
-                .and("proficiency").is(0.0));
+        try {
+            // 查询学习进度
+            Query query = new Query(Criteria.where("userId").is(userId)
+                    .and("bookId").is(bookId)
+                    .and("proficiency").is(0.0));
 
-        List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
+            List<Document> learningProgressList = mongoTemplate.find(query, Document.class, "word_learning_progress");
 
-        // 提取wordId列表
-        List<ObjectId> wordIds = learningProgressList.stream()
-                .map(doc -> (ObjectId) doc.get("wordId"))
-                .collect(Collectors.toList());
+            // 提取wordId列表
+            List<ObjectId> wordIds = learningProgressList.stream()
+                    .map(doc -> doc.get("wordId"))
+                    .filter(id -> id instanceof ObjectId)
+                    .map(id -> (ObjectId) id)
+                    .collect(Collectors.toList());
 
-        // 查询单词详情
-        Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
-        return mongoTemplate.find(wordQuery, Document.class, "word")
-                .stream()
-                .map(document -> document.entrySet().stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)))
-                .collect(Collectors.toList());
+            if (wordIds.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            // 查询单词详情
+            Query wordQuery = new Query(Criteria.where("_id").in(wordIds));
+            List<Document> wordDocuments = mongoTemplate.find(wordQuery, Document.class, "words");
+
+            return convertDocumentsToMaps(wordDocuments);
+        } catch (Exception e) {
+            log.error("Error getting unlearned words from book: ", e);
+            return new ArrayList<>();
+        }
     }
 }
