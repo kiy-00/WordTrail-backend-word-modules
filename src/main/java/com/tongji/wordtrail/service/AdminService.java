@@ -29,6 +29,7 @@ public class AdminService {
         // 使用 Optional 来避免 null 检查
         Administer admin = adminRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+        
         if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
             logger.warn("Invalid password for username");
             throw new RuntimeException("Invalid credentials");

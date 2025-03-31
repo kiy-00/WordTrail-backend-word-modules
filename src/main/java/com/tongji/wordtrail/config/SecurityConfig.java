@@ -28,6 +28,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 // 允许登录和注册接口匿名访问
                 .antMatchers("/api/v1/auth/**").permitAll()
                 .antMatchers("/api/users/**").permitAll()
+                .antMatchers("/api/wordbooks/**").permitAll()
                 // 其他所有请求都需要认证
                 .anyRequest().authenticated()
                 .and()

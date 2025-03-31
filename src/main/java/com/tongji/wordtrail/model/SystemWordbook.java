@@ -73,4 +73,8 @@ public class SystemWordbook {
     public void setWords(List<ObjectId> words) {
         this.words = words;
     }
+
+    public int getWordCount() {
+        return words != null ? words.size() : 0;
+    }
 }
