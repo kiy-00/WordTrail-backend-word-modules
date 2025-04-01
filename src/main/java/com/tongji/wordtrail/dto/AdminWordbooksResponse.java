@@ -1,6 +1,7 @@
 package com.tongji.wordtrail.dto;
 import lombok.Data;
 
+// 用于获取词汇列表
 @Data
 public class AdminWordbooksResponse {
     private String bookName;

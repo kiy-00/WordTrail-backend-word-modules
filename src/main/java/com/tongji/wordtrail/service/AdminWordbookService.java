@@ -1,6 +1,8 @@
 package com.tongji.wordtrail.service;
 
+import com.tongji.wordtrail.dto.AdminWordRequest;
 import com.tongji.wordtrail.dto.AdminWordResponse;
+import com.tongji.wordtrail.dto.AdminWordbookRequest;
 import com.tongji.wordtrail.dto.AdminWordbooksResponse;
 import com.tongji.wordtrail.model.SystemWordbook;
 import com.tongji.wordtrail.model.Words;
@@ -11,9 +13,11 @@ import org.bson.types.ObjectId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -26,7 +30,10 @@ public class AdminWordbookService {
     private WordRepository wordRepository;
     @Autowired
     private SystemWordbookRepository systemWordbookRepository;
-
+    @Autowired
+    private SystemWordbookService systemWordbookService;;
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
 
     public List<AdminWordbooksResponse> findWordBooks() {
@@ -52,7 +59,6 @@ public class AdminWordbookService {
         return responseList;
     }
     public List<Words> findWords(ObjectId wordbookId) {
-
         SystemWordbook wordbook = systemWordbookRepository.findById(wordbookId).orElse(null);
         if (wordbook == null || wordbook.getWordCount() == 0) {
             logger.error("No wordbook found with id: {}", wordbookId);
@@ -66,4 +72,11 @@ public class AdminWordbookService {
         return words;
 
     }
+    /**
+     * 添加单词
+     */
+    public Words createWord(Words word) {
+        return mongoTemplate.save(word, "words");
+    }
+
 }
