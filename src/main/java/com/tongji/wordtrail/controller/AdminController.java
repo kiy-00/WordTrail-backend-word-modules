@@ -17,7 +17,7 @@ public class AdminController {
     private JwtUtil jwtUtil;
     private TokenBlacklistService tokenBlacklistService;
 
-    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    private static final Logger logger = LoggerFactory.getLogger(AdminController.class);
     private final AdminService adminService;
     public AdminController(AdminService adminService) {
         this.adminService = adminService;

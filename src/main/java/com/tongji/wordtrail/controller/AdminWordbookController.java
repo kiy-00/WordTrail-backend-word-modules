@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/wordbooks")
 public class AdminWordbookController {
-    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
+    private static final Logger logger = LoggerFactory.getLogger(AdminWordbookController.class);
     private final AdminWordbookService adminWordbookService;
     private final SystemWordbookService systemWordbookService;
     public AdminWordbookController(AdminWordbookService adminWordbookService, SystemWordbookService systemWordbookService) {

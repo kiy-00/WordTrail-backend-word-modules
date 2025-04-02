@@ -8,6 +8,7 @@ import com.tongji.wordtrail.util.JwtUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -69,7 +70,9 @@ public class AdminService {
         Administer admin = adminRepository.findByAdminKey(request.getKey())
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
         // 设置新密码并保存
-        admin.setPassword(request.getNewpassword());
+        // 加密新密码
+        String encryptedPassword = passwordEncoder.encode(request.getNewpassword());
+        admin.setPassword(encryptedPassword);
         adminRepository.save(admin);
         logger.info("Reset password successfully");
         String token = jwtUtil.generateToken(admin.getUserId(), admin.getEmail());
