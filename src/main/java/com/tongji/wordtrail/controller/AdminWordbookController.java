@@ -33,7 +33,20 @@ public class AdminWordbookController {
     @GetMapping("")
     public ResponseEntity<List<AdminWordbooksResponse>> getWordbooks() {
         try {
-            List<AdminWordbooksResponse> response = adminWordbookService.findWordBooks();
+            // 获取所有词书的详细信息
+            List<Map<String, Object>> wordbookDetails = adminWordbookService.findWordbooks();
+
+            // 将 Map 转换为 AdminWordbooksResponse 对象
+            List<AdminWordbooksResponse> response = wordbookDetails.stream().map(wordbook -> {
+                AdminWordbooksResponse adminResponse = new AdminWordbooksResponse();
+                adminResponse.setId((String) wordbook.get("id"));
+                adminResponse.setBookName((String) wordbook.get("bookName"));
+                adminResponse.setLanguage((String) wordbook.get("language"));
+                adminResponse.setDescription((String) wordbook.get("description"));
+                adminResponse.setWordCount((Integer) wordbook.get("wordCount"));
+                return adminResponse;
+            }).collect(Collectors.toList());
+
             logger.info("Find wordbooks successfully, found {} wordbooks", response.size());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -41,6 +54,7 @@ public class AdminWordbookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Collections.emptyList());
         }
     }
+
     // 获取词汇详情
     @GetMapping("/{wordbookId}")
     public ResponseEntity<List<Words>> getWords(@PathVariable ObjectId wordbookId) {
