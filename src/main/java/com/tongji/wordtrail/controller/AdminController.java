@@ -39,10 +39,10 @@ public class AdminController {
     }
     // 用户名密码登录
     @PostMapping("login/account")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
+    public ResponseEntity<AdminResponse> login(@RequestBody LoginRequest request) {
         logger.info("Login request for administer: {}", request);
         try {
-            AuthResponse response = adminService.login(request);
+            AdminResponse response = adminService.login(request);
             logger.info("Login response successfully: {}", response);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -53,10 +53,10 @@ public class AdminController {
     }
     // 邮箱密码登录
     @PostMapping("login/email")
-    public ResponseEntity<AuthResponse> EmailLogin(@RequestBody EmailLoginRequest request) {
+    public ResponseEntity<AdminResponse> EmailLogin(@RequestBody EmailLoginRequest request) {
         logger.info("Login request for administer: {}", request);
         try {
-            AuthResponse response = adminService.EmailLogin(request);
+            AdminResponse response = adminService.EmailLogin(request);
             logger.info("Login response successfully: {}", response);
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -108,7 +108,7 @@ public class AdminController {
         }
 
         // 查询用户信息
-        AdminResponse user = adminService.GetAdminInfo(username);
+        AdminDetailsResponse user = adminService.GetAdminInfo(username);
         if (user == null) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
@@ -121,8 +121,9 @@ public class AdminController {
         response.put("success", true);
         response.put("userId", user.getUser_id());
         response.put("username", user.getUsername());
-        response.put("key", user.getKey());
+        response.put("key", user.getAdmin_key());
         response.put("email", user.getEmail());
+        response.put("avatarUrl", user.getAvatarUrl());
         response.put("message", "用户信息获取成功");
 
         return ResponseEntity.ok(response);

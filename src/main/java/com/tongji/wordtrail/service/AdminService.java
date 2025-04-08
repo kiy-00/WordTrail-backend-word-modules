@@ -25,7 +25,7 @@ public class AdminService {
     private JwtUtil jwtUtil;
 
     // 用户名密码登录
-    public AuthResponse login(LoginRequest request) {
+    public AdminResponse login(LoginRequest request) {
         logger.debug("Processing login for username: {}", request.getUsername());
         // 使用 Optional 来避免 null 检查
         Administer admin = adminRepository.findByUsername(request.getUsername())
@@ -38,10 +38,10 @@ public class AdminService {
         logger.info("User logged in successfully");
 
         String token = jwtUtil.generateToken(admin.getUserId(), admin.getUsername());
-        return new AuthResponse(token, admin.getUserId(), admin.getUsername());
+        return new AdminResponse(token, admin.getAvatarUrl());
     }
     // 邮箱登录
-    public AuthResponse EmailLogin(EmailLoginRequest request) {
+    public AdminResponse EmailLogin(EmailLoginRequest request) {
         logger.debug("Processing login for email: {}", request.getEmail());
 
         // 查找用户
@@ -58,7 +58,7 @@ public class AdminService {
         String token = jwtUtil.generateToken(admin.getUserId(), admin.getEmail());
 
         logger.info("User logged in successfully.");
-        return new AuthResponse(token, admin.getUserId(), admin.getUsername());
+        return new AdminResponse(token, admin.getAvatarUrl());
     }
 
 
@@ -80,7 +80,7 @@ public class AdminService {
     }
 
     // 获取管理员信息
-    public AdminResponse GetAdminInfo(String username) {
+    public AdminDetailsResponse GetAdminInfo(String username) {
         logger.debug("Get admin information");
         System.out.println(username);
         // 使用 Optional 来避免 null 检查
@@ -88,7 +88,7 @@ public class AdminService {
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
 
         logger.info("Get admin information successfully");
-        return new AdminResponse(admin.getUserId(), admin.getUsername(),admin.getAdminKey(), admin.getEmail());
+        return new AdminDetailsResponse(admin.getUserId(), admin.getUsername(),admin.getEmail(), admin.getAvatarUrl(), admin.getAdminKey());
     }
 
     // 保存用户上传的头像信息
