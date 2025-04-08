@@ -4,11 +4,13 @@ server:
 spring:
   # MySQL配置
   datasource:
-    url: jdbc:mysql://47.120.78.249:3306/users
+    url: jdbc:mysql://47.120.78.249:3306/users?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC
     username: adminUser
     password: xWtgRmSuqKdd..2
     driver-class-name: com.mysql.cj.jdbc.Driver
-
+  web:
+    resources:
+      static-locations: file:./uploads/
   # JPA配置
   jpa:
     hibernate:

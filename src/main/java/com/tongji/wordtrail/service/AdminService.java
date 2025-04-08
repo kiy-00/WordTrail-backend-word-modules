@@ -80,16 +80,23 @@ public class AdminService {
     }
 
     // 获取管理员信息
-    public AdminResponse GetAdminInfo(AdminDetailsRequest request) {
+    public AdminResponse GetAdminInfo(String username) {
         logger.debug("Get admin information");
+        System.out.println(username);
         // 使用 Optional 来避免 null 检查
-        Administer admin = adminRepository.findByUsername(request.getUsername())
+        Administer admin = adminRepository.findByUsername(username)
                 .orElseThrow(() -> new InvalidCredentialsException("User not found"));
 
         logger.info("Get admin information successfully");
-        String token = jwtUtil.generateToken(admin.getUserId(), admin.getEmail());
-        return new AdminResponse(admin.getUserId(), admin.getUsername(),admin.getAdminKey(),token);
+        return new AdminResponse(admin.getUserId(), admin.getUsername(),admin.getAdminKey(), admin.getEmail());
     }
 
-
+    // 保存用户上传的头像信息
+    public Boolean findByUsername(String username, String avatarUrl) {
+        Administer admin = adminRepository.findByUsername(username)
+                .orElseThrow(() -> new InvalidCredentialsException("User not found"));
+        admin.setAvatarUrl(avatarUrl);
+        adminRepository.save(admin);
+        return true;
+    }
 }

@@ -23,4 +23,7 @@ public class Administer {
 
     @Column(name = "admin_key", unique = true, nullable = false)
     private String adminKey;
+
+    @Column(unique = true)
+    private String avatarUrl;
 }
