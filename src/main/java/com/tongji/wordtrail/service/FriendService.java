@@ -220,4 +220,52 @@ public class FriendService {
         friendship.setUpdateTime(new Date());
         return friendRepository.save(friendship);
     }
+
+    // 添加到FriendService类中
+
+    /**
+     * 检查用户是否存在
+     */
+    public boolean checkUserExists(String userId) {
+        return userRepository.existsById(userId);
+    }
+
+    /**
+     * 检查两个用户是否已经是好友
+     */
+    public boolean checkAlreadyFriends(String userId, String friendId) {
+        return friendRepository.findByUserIdAndFriendId(userId, friendId).isPresent();
+    }
+
+    /**
+     * 检查是否有待处理的好友请求
+     */
+    public boolean checkPendingRequest(String senderId, String receiverId) {
+        return requestRepository.findBySenderIdAndReceiverIdAndStatus(senderId, receiverId, "pending").isPresent();
+    }
+
+    /**
+     * 检查好友请求是否存在
+     */
+    public boolean checkRequestExists(Long requestId) {
+        return requestRepository.existsById(requestId);
+    }
+
+    /**
+     * 检查好友请求是否发给指定用户
+     */
+    public boolean isRequestForUser(Long requestId, String userId) {
+        return requestRepository.findById(requestId)
+                .map(request -> request.getReceiverId().equals(userId))
+                .orElse(false);
+    }
+
+    /**
+     * 检查好友请求是否处于待处理状态
+     */
+    public boolean isPendingRequest(Long requestId) {
+        return requestRepository.findById(requestId)
+                .map(request -> "pending".equals(request.getStatus()))
+                .orElse(false);
+    }
 }
