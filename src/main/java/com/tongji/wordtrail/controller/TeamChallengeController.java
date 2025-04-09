@@ -2,6 +2,7 @@ package com.tongji.wordtrail.controller;
 
 import com.tongji.wordtrail.model.TeamChallenge;
 import com.tongji.wordtrail.service.TeamChallengeService;
+import com.tongji.wordtrail.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,17 +27,30 @@ public class TeamChallengeController {
      */
     @PostMapping("/create")
     public ResponseEntity<?> createChallenge(
-            @RequestParam String creatorId,
             @RequestParam String partnerId,
             @RequestParam String name,
             @RequestParam(required = false) String description,
             @RequestParam int dailyWordsTarget,
             @RequestParam int durationDays) {
         try {
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
             TeamChallenge challenge = challengeService.createChallenge(
-                    creatorId, partnerId, name, description, dailyWordsTarget, durationDays);
+                    currentUserId, partnerId, name, description, dailyWordsTarget, durationDays);
             return ResponseEntity.ok(challenge);
+        } catch (IllegalArgumentException e) {
+            // 这是业务规则验证失败，应返回400 Bad Request
+            Map<String, String> error = new HashMap<>();
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
         } catch (Exception e) {
+            // 其他未预期的异常，返回500
             Map<String, String> error = new HashMap<>();
             error.put("message", "创建挑战失败: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
@@ -47,11 +61,17 @@ public class TeamChallengeController {
      * 接受组队挑战
      */
     @PostMapping("/{challengeId}/accept")
-    public ResponseEntity<?> acceptChallenge(
-            @PathVariable Long challengeId,
-            @RequestParam String userId) {
+    public ResponseEntity<?> acceptChallenge(@PathVariable Long challengeId) {
         try {
-            TeamChallenge challenge = challengeService.acceptChallenge(challengeId, userId);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            TeamChallenge challenge = challengeService.acceptChallenge(challengeId, currentUserId);
             return ResponseEntity.ok(challenge);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -64,11 +84,17 @@ public class TeamChallengeController {
      * 拒绝组队挑战
      */
     @PostMapping("/{challengeId}/reject")
-    public ResponseEntity<?> rejectChallenge(
-            @PathVariable Long challengeId,
-            @RequestParam String userId) {
+    public ResponseEntity<?> rejectChallenge(@PathVariable Long challengeId) {
         try {
-            TeamChallenge challenge = challengeService.rejectChallenge(challengeId, userId);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            TeamChallenge challenge = challengeService.rejectChallenge(challengeId, currentUserId);
             return ResponseEntity.ok(challenge);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -80,10 +106,18 @@ public class TeamChallengeController {
     /**
      * 获取用户参与的所有挑战
      */
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<?> getUserChallenges(@PathVariable String userId) {
+    @GetMapping("/user")
+    public ResponseEntity<?> getUserChallenges() {
         try {
-            List<Map<String, Object>> challenges = challengeService.getUserChallenges(userId);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            List<Map<String, Object>> challenges = challengeService.getUserChallenges(currentUserId);
             return ResponseEntity.ok(challenges);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -96,11 +130,17 @@ public class TeamChallengeController {
      * 获取单个挑战详情
      */
     @GetMapping("/{challengeId}")
-    public ResponseEntity<?> getChallengeDetail(
-            @PathVariable Long challengeId,
-            @RequestParam String userId) {
+    public ResponseEntity<?> getChallengeDetail(@PathVariable Long challengeId) {
         try {
-            Map<String, Object> challenge = challengeService.getChallengeDetail(challengeId, userId);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            Map<String, Object> challenge = challengeService.getChallengeDetail(challengeId, currentUserId);
             return ResponseEntity.ok(challenge);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -110,15 +150,20 @@ public class TeamChallengeController {
     }
 
     /**
-     * 组队打卡
+     * 组队打卡 - 使用系统记录的实际学习数据
      */
     @PostMapping("/{challengeId}/clock-in")
-    public ResponseEntity<?> clockIn(
-            @PathVariable Long challengeId,
-            @RequestParam String userId,
-            @RequestParam int wordsCompleted) {
+    public ResponseEntity<?> clockIn(@PathVariable Long challengeId) {
         try {
-            Map<String, Object> result = challengeService.clockIn(challengeId, userId, wordsCompleted);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            Map<String, Object> result = challengeService.clockIn(challengeId, currentUserId);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -130,10 +175,18 @@ public class TeamChallengeController {
     /**
      * 获取用户的活跃挑战
      */
-    @GetMapping("/active/user/{userId}")
-    public ResponseEntity<?> getActiveUserChallenges(@PathVariable String userId) {
+    @GetMapping("/active")
+    public ResponseEntity<?> getActiveUserChallenges() {
         try {
-            List<Map<String, Object>> challenges = challengeService.getActiveUserChallenges(userId);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            List<Map<String, Object>> challenges = challengeService.getActiveUserChallenges(currentUserId);
             return ResponseEntity.ok(challenges);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -146,11 +199,17 @@ public class TeamChallengeController {
      * 获取挑战统计信息
      */
     @GetMapping("/{challengeId}/stats")
-    public ResponseEntity<?> getChallengeStats(
-            @PathVariable Long challengeId,
-            @RequestParam String userId) {
+    public ResponseEntity<?> getChallengeStats(@PathVariable Long challengeId) {
         try {
-            Map<String, Object> stats = challengeService.getChallengeStats(challengeId, userId);
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            Map<String, Object> stats = challengeService.getChallengeStats(challengeId, currentUserId);
             return ResponseEntity.ok(stats);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();

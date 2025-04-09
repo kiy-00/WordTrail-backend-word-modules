@@ -2,7 +2,7 @@ package com.tongji.wordtrail.service;
 
 import com.tongji.wordtrail.model.TeamChallenge;
 import com.tongji.wordtrail.model.TeamChallengeClockIn;
-import com.tongji.wordtrail.model.User;
+import com.tongji.wordtrail.model.LearningRecord;
 import com.tongji.wordtrail.model.UserFriend;
 import com.tongji.wordtrail.repository.TeamChallengeClockInRepository;
 import com.tongji.wordtrail.repository.TeamChallengeRepository;
@@ -24,6 +24,9 @@ public class TeamChallengeService {
     private final TeamChallengeClockInRepository clockInRepository;
     private final UserFriendRepository friendRepository;
     private final UserRepository userRepository;
+
+    @Autowired
+    private LearningRecordService learningRecordService;
 
     @Autowired
     public TeamChallengeService(
@@ -260,10 +263,10 @@ public class TeamChallengeService {
     }
 
     /**
-     * 组队打卡
+     * 组队打卡 - 使用系统记录的实际学习数据，只计算"learn"类型的记录
      */
     @Transactional
-    public Map<String, Object> clockIn(Long challengeId, String userId, int wordsCompleted) {
+    public Map<String, Object> clockIn(Long challengeId, String userId) {
         TeamChallenge challenge = challengeRepository.findById(challengeId)
                 .orElseThrow(() -> new IllegalArgumentException("挑战不存在"));
 
@@ -282,6 +285,15 @@ public class TeamChallengeService {
         if (today.after(challenge.getEndDate())) {
             throw new IllegalArgumentException("挑战已结束，无法打卡");
         }
+
+        // 获取用户今日学习记录并计算学习单词数量
+        List<LearningRecord> todayRecords = learningRecordService.getTodayLearningRecords(userId);
+
+        // 只计算"learn"类型的记录
+        int wordsCompleted = todayRecords.stream()
+                .filter(record -> "learn".equals(record.getType()))
+                .mapToInt(LearningRecord::getCount)
+                .sum();
 
         // 获取今日的打卡记录，若不存在则创建
         TeamChallengeClockIn clockIn = clockInRepository
