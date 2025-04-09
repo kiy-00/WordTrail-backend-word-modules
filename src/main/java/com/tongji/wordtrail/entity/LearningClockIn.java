@@ -4,7 +4,9 @@ import javax.persistence.*;
 import java.util.Date;
 
 @Entity
-@Table(name = "learning_clock_in")
+@Table(name = "learning_clock_in", uniqueConstraints = {
+        @UniqueConstraint(name = "idx_user_date", columnNames = {"user_id", "clock_in_date"})
+})
 public class LearningClockIn {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -14,6 +16,7 @@ public class LearningClockIn {
     private String userId;
 
     @Column(name = "clock_in_date", nullable = false)
+    @Temporal(TemporalType.DATE)  // 确保只存储日期部分，不包含时间
     private Date clockInDate;
 
     @Column(name = "status", nullable = false)
