@@ -467,4 +467,130 @@ public class TeamChallengeService {
 
         return stats;
     }
+
+    /**
+     * 获取当日打卡状态
+     */
+    public Map<String, Object> getTodayClockInStatus(Long challengeId, String userId) {
+        TeamChallenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("挑战不存在"));
+
+        // 验证用户参与此挑战
+        if (!challenge.getCreatorId().equals(userId) && !challenge.getPartnerId().equals(userId)) {
+            throw new IllegalArgumentException("无权查看此挑战");
+        }
+
+        Date today = new Date();
+        Map<String, Object> result = new HashMap<>();
+
+        // 确定伙伴ID
+        String partnerId = challenge.getCreatorId().equals(userId) ?
+                challenge.getPartnerId() : challenge.getCreatorId();
+
+        // 获取用户打卡状态
+        Optional<TeamChallengeClockIn> userClockIn = clockInRepository
+                .findByChallengeIdAndUserIdAndClockInDate(challengeId, userId, today);
+
+        boolean userCompleted = userClockIn.isPresent() && userClockIn.get().isStatus();
+        int userWordsCompleted = userClockIn.map(TeamChallengeClockIn::getWordsCompleted).orElse(0);
+
+        // 获取伙伴打卡状态
+        Optional<TeamChallengeClockIn> partnerClockIn = clockInRepository
+                .findByChallengeIdAndUserIdAndClockInDate(challengeId, partnerId, today);
+
+        boolean partnerCompleted = partnerClockIn.isPresent() && partnerClockIn.get().isStatus();
+        int partnerWordsCompleted = partnerClockIn.map(TeamChallengeClockIn::getWordsCompleted).orElse(0);
+
+        // 填充结果
+        result.put("challengeId", challengeId);
+        result.put("date", new SimpleDateFormat("yyyy-MM-dd").format(today));
+        result.put("userCompleted", userCompleted);
+        result.put("userWordsCompleted", userWordsCompleted);
+        result.put("partnerCompleted", partnerCompleted);
+        result.put("partnerWordsCompleted", partnerWordsCompleted);
+        result.put("dailyTarget", challenge.getDailyWordsTarget());
+        result.put("bothCompleted", userCompleted && partnerCompleted);
+
+        return result;
+    }
+
+    /**
+     * 获取挑战最终结果
+     */
+    public Map<String, Object> getChallengeResult(Long challengeId, String userId) {
+        TeamChallenge challenge = challengeRepository.findById(challengeId)
+                .orElseThrow(() -> new IllegalArgumentException("挑战不存在"));
+
+        // 验证用户参与此挑战
+        if (!challenge.getCreatorId().equals(userId) && !challenge.getPartnerId().equals(userId)) {
+            throw new IllegalArgumentException("无权查看此挑战");
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("challengeId", challengeId);
+        result.put("name", challenge.getName());
+        result.put("status", challenge.getStatus());
+        result.put("dailyWordsTarget", challenge.getDailyWordsTarget());
+        result.put("streakDays", challenge.getStreakDays());
+        result.put("startDate", challenge.getStartDate());
+        result.put("endDate", challenge.getEndDate());
+
+        // 计算挑战期间的总天数
+        Calendar calendar = Calendar.getInstance();
+        calendar.setTime(challenge.getStartDate());
+        Date endDate = challenge.getEndDate();
+
+        int totalDays = 0;
+        int successDays = 0;
+
+        List<Map<String, Object>> dailyRecords = new ArrayList<>();
+
+        while (!calendar.getTime().after(endDate)) {
+            Date currentDate = calendar.getTime();
+            totalDays++;
+
+            Map<String, Object> dailyRecord = new HashMap<>();
+            dailyRecord.put("date", new SimpleDateFormat("yyyy-MM-dd").format(currentDate));
+
+            int completedCount = clockInRepository
+                    .countSuccessfulClockInsForDate(challenge.getId(), currentDate);
+
+            boolean daySuccessful = completedCount == 2;
+            if (daySuccessful) {
+                successDays++;
+            }
+
+            dailyRecord.put("bothCompleted", daySuccessful);
+            dailyRecords.add(dailyRecord);
+
+            calendar.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        result.put("totalDays", totalDays);
+        result.put("successDays", successDays);
+        result.put("successRate", Math.round((double) successDays / totalDays * 100) / 100.0);
+        result.put("dailyRecords", dailyRecords);
+
+        // 添加用户和伙伴信息
+        String partnerId = challenge.getCreatorId().equals(userId) ?
+                challenge.getPartnerId() : challenge.getCreatorId();
+
+        // 计算用户统计
+        int userTotalWords = clockInRepository
+                .findByChallengeIdAndUserId(challengeId, userId)
+                .stream()
+                .mapToInt(TeamChallengeClockIn::getWordsCompleted)
+                .sum();
+
+        int partnerTotalWords = clockInRepository
+                .findByChallengeIdAndUserId(challengeId, partnerId)
+                .stream()
+                .mapToInt(TeamChallengeClockIn::getWordsCompleted)
+                .sum();
+
+        result.put("userTotalWords", userTotalWords);
+        result.put("partnerTotalWords", partnerTotalWords);
+
+        return result;
+    }
 }
