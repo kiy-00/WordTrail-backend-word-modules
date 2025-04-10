@@ -73,8 +73,9 @@ public class WordLearningProgressService {
         Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
         Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
+        // 修改查询条件，包括当天和逾期的单词
         Query query = new Query(Criteria.where("userId").is(userId)
-                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+                .and("nextReviewTime").lt(endOfDay));  // 去掉 gte(startOfDay) 条件
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
@@ -86,9 +87,10 @@ public class WordLearningProgressService {
         Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
         Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
 
+        // 修改查询条件，包括当天和逾期的单词
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+                .and("nextReviewTime").lt(endOfDay));  // 去掉 gte(startOfDay) 条件
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
