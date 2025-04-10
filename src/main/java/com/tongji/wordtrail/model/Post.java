@@ -16,14 +16,28 @@ public class Post {
     private String content;
     private List<String> filePaths; // 存储文件路径列表
     private LocalDateTime createdAt;
+    private LocalDateTime updatedTime;
+    private String author;
+    private String userAvatarUrl;
+    private int commentCount;
+    private int voteCount;
+    private int page;
+    public Post() {
+        this.commentCount = 0;
+        this.voteCount = 0;
+    }
 
-    public Post() {}
-
-    public Post(String title, String content, List<String> filePaths, LocalDateTime createdAt) {
+    public Post(String title, String content, List<String> filePaths, LocalDateTime createdAt, LocalDateTime updatedTime, String author, String userAvatarUrl, int commentCount, int voteCount, int page) {
         this.title = title;
         this.content = content;
         this.filePaths = filePaths;
         this.createdAt = createdAt;
+        this.updatedTime = updatedTime;
+        this.author = author;
+        this.userAvatarUrl = userAvatarUrl;
+        this.commentCount = commentCount;
+        this.voteCount = voteCount;
+        this.page = page;
     }
 
     // Getter 和 Setter

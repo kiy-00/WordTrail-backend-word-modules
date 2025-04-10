@@ -146,6 +146,11 @@ public class AdminWordbookController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
         }
     }
-
+    // 删除词书
+    @DeleteMapping("/{wordbookId}")
+    public ResponseEntity<?> removeWordbook(@PathVariable String wordbookId) {
+        systemWordbookService.deleteSystemWordbook(wordbookId);
+        return ResponseEntity.ok().body("{}");
+    }
 
 }
