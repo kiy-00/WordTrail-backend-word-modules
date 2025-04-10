@@ -1,6 +1,8 @@
 package com.tongji.wordtrail.schedule;
 
 import com.tongji.wordtrail.model.TeamChallenge;
+import com.tongji.wordtrail.model.TeamChallengeDailyResult;
+import com.tongji.wordtrail.repository.TeamChallengeDailyResultRepository;
 import com.tongji.wordtrail.repository.TeamChallengeRepository;
 import com.tongji.wordtrail.repository.TeamChallengeClockInRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +22,9 @@ public class TeamChallengeScheduler {
 
     @Autowired
     private TeamChallengeClockInRepository clockInRepository;
+
+    @Autowired
+    private TeamChallengeDailyResultRepository dailyResultRepository;
 
     /**
      * 每天23:59执行，检查当日的挑战打卡状态
@@ -88,10 +93,28 @@ public class TeamChallengeScheduler {
 
     /**
      * 记录每日结果
-     * 注意：你可能需要新建一个表来存储这些数据，或者在现有表中添加字段
      */
     private void recordDailyResult(Long challengeId, Date date, boolean bothCompleted) {
-        // 实现记录每日结果的逻辑
-        // 这里根据你的数据模型来实现
+        // 使用JPA方式实现 - 假设你已经创建了相应的实体类和Repository
+        TeamChallengeDailyResult dailyResult = dailyResultRepository
+                .findByChallengeIdAndResultDate(challengeId, date)
+                .orElse(new TeamChallengeDailyResult());
+
+        dailyResult.setChallengeId(challengeId);
+        dailyResult.setResultDate(date);
+        dailyResult.setBothCompleted(bothCompleted);
+
+        // 如果是第一次记录，设置创建时间
+        if (dailyResult.getId() == null) {
+            dailyResult.setCreateTime(new Date());
+        }
+
+        dailyResultRepository.save(dailyResult);
+
+        // 如果挑战结束，更新挑战状态
+        TeamChallenge challenge = challengeRepository.findById(challengeId).orElse(null);
+        if (challenge != null && date.compareTo(challenge.getEndDate()) >= 0) {
+            updateChallengeStatus(challenge);
+        }
     }
 }
