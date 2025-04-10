@@ -217,4 +217,48 @@ public class TeamChallengeController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
+    /**
+     * 获取当日打卡状态
+     */
+    @GetMapping("/{challengeId}/today-status")
+    public ResponseEntity<?> getTodayClockInStatus(@PathVariable Long challengeId) {
+        try {
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            Map<String, Object> status = challengeService.getTodayClockInStatus(challengeId, currentUserId);
+            return ResponseEntity.ok(status);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取当日打卡状态失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 获取挑战最终结果
+     */
+    @GetMapping("/{challengeId}/result")
+    public ResponseEntity<?> getChallengeResult(@PathVariable Long challengeId) {
+        try {
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            Map<String, Object> result = challengeService.getChallengeResult(challengeId, currentUserId);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取挑战结果失败: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
 }
