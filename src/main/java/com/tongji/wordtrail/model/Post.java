@@ -2,6 +2,8 @@ package com.tongji.wordtrail.model;
 
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.web.multipart.MultipartFile;
+
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -49,7 +51,7 @@ public class Post {
         this.content = content;
     }
 
-    public List<String> getFilePaths(List<String> filePaths) {
+    public List<String> getFilePaths() {
         return filePaths;
     }
 
