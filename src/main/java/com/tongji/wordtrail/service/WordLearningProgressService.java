@@ -382,12 +382,14 @@ public class WordLearningProgressService {
         List<ObjectId> bookWordIds = getBookWordIds(bookId);
 
         Date today = new Date();
+        Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
         Date endOfDay = new Date(today.getYear(), today.getMonth(), today.getDate() + 1);
 
-        // 修改查询条件，包括当天和逾期的单词
+        // 修改查询条件，确保只包括今天需要复习但尚未复习的单词
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("nextReviewTime").lt(endOfDay));  // 去掉 gte(startOfDay) 条件
+                .and("nextReviewTime").lt(endOfDay)
+                .and("lastReviewTime").not().gte(startOfDay)); // 添加条件：上次复习时间不是今天
 
         return (int) mongoTemplate.count(query, WordLearningProgress.class);
     }

@@ -224,7 +224,7 @@ public class WordLearningProgressController {
     }
 
     /**
-     * 获取词书中未学习的单词（proficiency = 0）
+     * 获取词书中未学习的单词（没有学习记录）
      */
     @GetMapping("/book/{bookId}/unlearned-words")
     public ResponseEntity<List<WordLearningProgress>> getUnlearnedWordsFromBook(
@@ -236,7 +236,7 @@ public class WordLearningProgressController {
     }
 
     /**
-     * 获取词书中初识的单词（0 < proficiency < 0.5）
+     * 获取词书中初识的单词（0 <= proficiency < 0.5）
      */
     @GetMapping("/book/{bookId}/newly-learned-words")
     public ResponseEntity<List<WordLearningProgress>> getNewlyLearnedWordsFromBook(
