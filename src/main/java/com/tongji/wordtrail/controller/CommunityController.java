@@ -4,6 +4,7 @@ import cn.hutool.core.io.FileUtil;
 import com.tongji.wordtrail.dto.AdminWordbooksResponse;
 import com.tongji.wordtrail.dto.DeletePostRequest;
 import com.tongji.wordtrail.dto.PostRequest;
+import com.tongji.wordtrail.dto.PostResponse;
 import com.tongji.wordtrail.model.Post;
 import com.tongji.wordtrail.service.CommunityService;
 import org.slf4j.Logger;
@@ -31,6 +32,7 @@ public class CommunityController {
     // 发布新帖子
     @PostMapping("/post/new")
     public ResponseEntity<?> createNewPost(
+            @RequestParam("username") String username,
             @RequestParam("title") String title,
             @RequestParam("content") String content,
             @RequestParam(value = "files", required = false) List<MultipartFile> files) {
@@ -57,7 +59,7 @@ public class CommunityController {
         System.out.println("Title: " + title);
         System.out.println("Content: " + content);
 
-        Post post = communityService.createPost(title, content, imagePaths);
+        Post post = communityService.createPost(username, title, content, imagePaths);
         return ResponseEntity.ok().body("{}");
     }
 
@@ -85,5 +87,14 @@ public class CommunityController {
         } else {
             return ResponseEntity.notFound().build();
         }
+    }
+    @GetMapping("/post/list")
+    public ResponseEntity<?> getPostListByPage(@RequestParam(value = "page", defaultValue = "1") int page) {
+        List<PostResponse> postList = null;//communityService.getPostsByPage(page);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", postList);
+        return ResponseEntity.ok().body(responseData);
     }
 }
