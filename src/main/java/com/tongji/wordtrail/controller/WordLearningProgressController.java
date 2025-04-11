@@ -234,4 +234,16 @@ public class WordLearningProgressController {
                 learningProgressService.getUnlearnedWordsFromBook(userId, bookId);
         return new ResponseEntity<>(unlearnedWords, HttpStatus.OK);
     }
+
+    /**
+     * 获取词书中初识的单词（0 < proficiency < 0.5）
+     */
+    @GetMapping("/book/{bookId}/newly-learned-words")
+    public ResponseEntity<List<WordLearningProgress>> getNewlyLearnedWordsFromBook(
+            @RequestParam String userId,
+            @PathVariable ObjectId bookId) {
+        List<WordLearningProgress> newlyLearnedWords =
+                learningProgressService.getNewlyLearnedWordsFromBook(userId, bookId);
+        return new ResponseEntity<>(newlyLearnedWords, HttpStatus.OK);
+    }
 }

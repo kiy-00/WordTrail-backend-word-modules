@@ -237,21 +237,53 @@ public class WordLearningProgressService {
     }
 
     /**
-     * 获取指定词书中未学习的单词（熟练度 = 0）
+     * 获取指定词书中初识的单词（熟练度 >= 0 且 < 0.5，且存在学习记录）
      * @param userId 用户ID
      * @param bookId 词书ID
-     * @return 未学习单词的学习进度列表
+     * @return 初识单词的学习进度列表
      */
-    public List<WordLearningProgress> getUnlearnedWordsFromBook(String userId, ObjectId bookId) {
+    public List<WordLearningProgress> getNewlyLearnedWordsFromBook(String userId, ObjectId bookId) {
         List<ObjectId> bookWordIds = getBookWordIds(bookId);
 
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("proficiency").is(0.0));
+                .and("proficiency").gte(0.0).lt(0.5));
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
 
+    /**
+     * 获取词书中未学习的单词（没有学习记录的词）
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 未学习单词列表
+     */
+    public List<WordLearningProgress> getUnlearnedWordsFromBook(String userId, ObjectId bookId) {
+        // 获取词书中所有的单词ID
+        List<ObjectId> allBookWordIds = getBookWordIds(bookId);
+
+        // 查询用户已经学习过的单词
+        Query learnedQuery = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(allBookWordIds));
+        List<WordLearningProgress> learnedWords = mongoTemplate.find(learnedQuery, WordLearningProgress.class);
+
+        // 提取已学习单词的ID
+        List<ObjectId> learnedWordIds = learnedWords.stream()
+                .map(WordLearningProgress::getWordId)
+                .collect(Collectors.toList());
+
+        // 过滤出未学习的单词ID
+        List<ObjectId> unlearnedWordIds = allBookWordIds.stream()
+                .filter(wordId -> !learnedWordIds.contains(wordId))
+                .collect(Collectors.toList());
+
+        // 为未学习的单词创建空的进度对象
+        List<WordLearningProgress> unlearnedWords = unlearnedWordIds.stream()
+                .map(wordId -> new WordLearningProgress(userId, wordId))
+                .collect(Collectors.toList());
+
+        return unlearnedWords;
+    }
     // 内部类保持不变，因为它们不涉及 userId
     public static class UserLearningStats {
         private int totalWords;
