@@ -341,21 +341,21 @@ public class WordLearningProgressService {
     }
 
     /**
-     * 获取指定词书中今天需要复习的单词数量
+     * 获取指定词书中今天需要复习的单词数量（包括逾期未复习的单词）
      * @param userId 用户ID
      * @param bookId 词书ID
-     * @return 今天需要复习的单词数量
+     * @return 今天需要复习的单词数量（包括逾期）
      */
     public int getTodayReviewWordsCountForBook(String userId, ObjectId bookId) {
         List<ObjectId> bookWordIds = getBookWordIds(bookId);
 
         Date today = new Date();
-        Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
-        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        Date endOfDay = new Date(today.getYear(), today.getMonth(), today.getDate() + 1);
 
+        // 修改查询条件，包括当天和逾期的单词
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+                .and("nextReviewTime").lt(endOfDay));  // 去掉 gte(startOfDay) 条件
 
         return (int) mongoTemplate.count(query, WordLearningProgress.class);
     }
