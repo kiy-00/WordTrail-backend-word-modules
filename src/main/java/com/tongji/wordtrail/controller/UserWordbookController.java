@@ -161,4 +161,23 @@ public class UserWordbookController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    /**
+     * 检查指定单词是否存在于用户的任何词书中
+     * @param userId 用户ID
+     * @param wordId 单词ID
+     * @return 包含检查结果的Map
+     */
+    @GetMapping("/user/{userId}/check-word/{wordId}")
+    public ResponseEntity<Map<String, Object>> checkWordExistsInUserWordbooks(
+            @PathVariable String userId,
+            @PathVariable String wordId) {
+        try {
+            Map<String, Object> result = userWordbookService.checkWordExistsInUserWordbooks(userId, wordId);
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            log.error("Error checking if word exists in user wordbooks: ", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

@@ -497,4 +497,35 @@ public class UserWordbookService {
         List<Document> documents = mongoTemplate.find(query, Document.class, "user_wordbooks");
         return convertDocumentsToMaps(documents);
     }
+
+    /**
+     * 检查指定单词是否存在于用户的任何词书中
+     * @param userId 用户ID
+     * @param wordId 单词ID
+     * @return 包含检查结果的Map，其中包含exists字段(是否存在)和wordbooks字段(包含所有包含该单词的词书列表)
+     */
+    public Map<String, Object> checkWordExistsInUserWordbooks(String userId, String wordId) {
+        Query query = new Query(Criteria.where("createUser").is(userId)
+                .and("words").in(wordId));
+
+        List<Document> wordbooks = mongoTemplate.find(query, Document.class, "user_wordbooks");
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("exists", !wordbooks.isEmpty());
+
+        if (!wordbooks.isEmpty()) {
+            List<Map<String, Object>> wordbooksList = new ArrayList<>();
+
+            for (Document wordbook : wordbooks) {
+                Map<String, Object> wordbookInfo = new HashMap<>();
+                wordbookInfo.put("id", wordbook.getObjectId("_id").toString());
+                wordbookInfo.put("name", wordbook.getString("bookName"));
+                wordbooksList.add(wordbookInfo);
+            }
+
+            result.put("wordbooks", wordbooksList);
+        }
+
+        return result;
+    }
 }
