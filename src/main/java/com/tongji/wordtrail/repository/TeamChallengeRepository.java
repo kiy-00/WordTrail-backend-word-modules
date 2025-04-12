@@ -26,4 +26,16 @@ public interface TeamChallengeRepository extends JpaRepository<TeamChallenge, Lo
 
     // 查找特定状态的挑战
     List<TeamChallenge> findByStatus(String status);
+
+    // 需要添加到TeamChallengeRepository接口中的两个新方法
+
+    /**
+     * 查找用户创建的且状态为指定状态的挑战
+     */
+    List<TeamChallenge> findByCreatorIdAndStatus(String creatorId, String status);
+
+    /**
+     * 查找用户作为伙伴且状态为指定状态的挑战
+     */
+    List<TeamChallenge> findByPartnerIdAndStatus(String partnerId, String status);
 }
