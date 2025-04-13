@@ -28,6 +28,9 @@ public class WordLearningProgress {
     private int reviewStage;
     private List<ReviewRecord> reviewHistory;
 
+    // 添加一个新字段，标记数据是否来自数据库
+    private boolean fromDatabase = true;
+
     public WordLearningProgress() {
         this.proficiency = 0.0;
         this.reviewStage = 0;
@@ -123,6 +126,15 @@ public class WordLearningProgress {
         }
         this.reviewHistory.add(record);
         this.lastReviewTime = record.getReviewTime();
+    }
+
+    // 添加 fromDatabase 相关的 getter 和 setter
+    public boolean isFromDatabase() {
+        return fromDatabase;
+    }
+
+    public void setFromDatabase(boolean fromDatabase) {
+        this.fromDatabase = fromDatabase;
     }
 
     // 内部类：复习记录

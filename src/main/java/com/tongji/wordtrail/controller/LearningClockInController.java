@@ -3,6 +3,7 @@ package com.tongji.wordtrail.controller;
 import com.tongji.wordtrail.entity.LearningClockIn;
 import com.tongji.wordtrail.model.LearningGoal;
 import com.tongji.wordtrail.service.LearningClockInService;
+import com.tongji.wordtrail.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -28,38 +29,95 @@ public class LearningClockInController {
      * 设置学习目标
      */
     @PostMapping("/goal")
-    public ResponseEntity<LearningGoal> setLearningGoal(
-            @RequestParam String userId,
+    public ResponseEntity<?> setLearningGoal(
             @RequestParam int dailyNewWordsGoal,
             @RequestParam int dailyReviewWordsGoal) {
-        LearningGoal goal = clockInService.setLearningGoal(userId, dailyNewWordsGoal, dailyReviewWordsGoal);
-        return new ResponseEntity<>(goal, HttpStatus.OK);
+        try {
+            // 获取当前认证用户ID
+            String userId = JwtUtil.getCurrentUserId();
+            if (userId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            LearningGoal goal = clockInService.setLearningGoal(userId, dailyNewWordsGoal, dailyReviewWordsGoal);
+            return new ResponseEntity<>(goal, HttpStatus.OK);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "设置学习目标失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     /**
      * 获取学习目标
      */
     @GetMapping("/goal")
-    public ResponseEntity<LearningGoal> getLearningGoal(@RequestParam String userId) {
-        LearningGoal goal = clockInService.getLearningGoal(userId);
-        return new ResponseEntity<>(goal, HttpStatus.OK);
+    public ResponseEntity<?> getLearningGoal() {
+        try {
+            // 获取当前认证用户ID
+            String userId = JwtUtil.getCurrentUserId();
+            if (userId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            LearningGoal goal = clockInService.getLearningGoal(userId);
+            return new ResponseEntity<>(goal, HttpStatus.OK);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取学习目标失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     /**
      * 获取今日打卡状态
      */
     @GetMapping("/today")
-    public ResponseEntity<LearningClockIn> getTodayClockIn(@RequestParam String userId) {
-        LearningClockIn clockIn = clockInService.getOrCreateTodayClockIn(userId);
-        return new ResponseEntity<>(clockIn, HttpStatus.OK);
+    public ResponseEntity<?> getTodayClockIn() {
+        try {
+            // 获取当前认证用户ID
+            String userId = JwtUtil.getCurrentUserId();
+            if (userId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            LearningClockIn clockIn = clockInService.getOrCreateTodayClockIn(userId);
+            return new ResponseEntity<>(clockIn, HttpStatus.OK);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取今日打卡状态失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
     }
 
     /**
      * 执行打卡操作
      */
     @PostMapping("/try")
-    public ResponseEntity<Map<String, Object>> tryClockIn(@RequestParam String userId) {
+    public ResponseEntity<Map<String, Object>> tryClockIn() {
         try {
+            // 获取当前认证用户ID
+            String userId = JwtUtil.getCurrentUserId();
+            if (userId == null) {
+                Map<String, Object> errorMap = new HashMap<>();
+                errorMap.put("success", false);
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
             LearningClockIn clockIn = clockInService.tryClockIn(userId);
 
             Map<String, Object> response = new HashMap<>();
@@ -74,7 +132,8 @@ public class LearningClockInController {
         } catch (Exception e) {
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("success", false);
-            errorResponse.put("error", "打卡失败: " + e.getMessage());
+            errorResponse.put("message", "打卡失败: " + e.getMessage());
+            errorResponse.put("code", "SERVER_ERROR");
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -83,13 +142,23 @@ public class LearningClockInController {
      * 获取用户打卡统计信息
      */
     @GetMapping("/stats")
-    public ResponseEntity<Map<String, Object>> getClockInStats(@RequestParam String userId) {
+    public ResponseEntity<?> getClockInStats() {
         try {
+            // 获取当前认证用户ID
+            String userId = JwtUtil.getCurrentUserId();
+            if (userId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
             Map<String, Object> stats = clockInService.getUserClockInStats(userId);
             return new ResponseEntity<>(stats, HttpStatus.OK);
         } catch (Exception e) {
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("error", "获取打卡统计失败: " + e.getMessage());
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "获取打卡统计失败: " + e.getMessage());
+            errorResponse.put("code", "SERVER_ERROR");
             return new ResponseEntity<>(errorResponse, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -98,12 +167,15 @@ public class LearningClockInController {
      * 获取用户过去一周的打卡记录
      */
     @GetMapping("/weekly")
-    public ResponseEntity<?> getWeeklyClockIn(@RequestParam(required = true) String userId) {
+    public ResponseEntity<?> getWeeklyClockIn() {
         try {
-            if (userId == null || userId.trim().isEmpty()) {
-                Map<String, String> error = new HashMap<>();
-                error.put("message", "用户ID不能为空");
-                return new ResponseEntity<>(error, HttpStatus.BAD_REQUEST);
+            // 获取当前认证用户ID
+            String userId = JwtUtil.getCurrentUserId();
+            if (userId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
             }
 
             List<Map<String, Object>> weeklyData = clockInService.getWeeklyClockInHistory(userId);
@@ -111,6 +183,7 @@ public class LearningClockInController {
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("message", "获取打卡记录失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
             return new ResponseEntity<>(error, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }

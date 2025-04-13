@@ -10,6 +10,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -71,11 +72,12 @@ public class WordLearningProgressService {
     public List<WordLearningProgress> getTodayReviewWords(String userId) {
         Date today = new Date();
         Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
-        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        Date endOfDay = new Date(today.getYear(), today.getMonth(), today.getDate() + 1);
 
-        // 修改查询条件，包括当天和逾期的单词
+        // 修改查询条件，确保只包括今天需要复习但尚未复习的单词
         Query query = new Query(Criteria.where("userId").is(userId)
-                .and("nextReviewTime").lt(endOfDay));  // 去掉 gte(startOfDay) 条件
+                .and("nextReviewTime").lt(endOfDay)
+                .and("lastReviewTime").not().gte(startOfDay)); // 添加条件：上次复习时间不是今天
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
@@ -85,12 +87,13 @@ public class WordLearningProgressService {
 
         Date today = new Date();
         Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
-        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        Date endOfDay = new Date(today.getYear(), today.getMonth(), today.getDate() + 1);
 
-        // 修改查询条件，包括当天和逾期的单词
+        // 修改查询条件，确保只包括今天需要复习但尚未复习的单词
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("nextReviewTime").lt(endOfDay));  // 去掉 gte(startOfDay) 条件
+                .and("nextReviewTime").lt(endOfDay)
+                .and("lastReviewTime").not().gte(startOfDay)); // 添加条件：上次复习时间不是今天
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
@@ -170,9 +173,14 @@ public class WordLearningProgressService {
     public List<WordLearningProgress> getBookReviewWords(String userId, ObjectId bookId) {
         List<ObjectId> bookWordIds = getBookWordIds(bookId);
 
+        Date today = new Date();
+        Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
+        Date endOfDay = new Date(today.getYear(), today.getMonth(), today.getDate() + 1);
+
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("nextReviewTime").lte(new Date()));
+                .and("nextReviewTime").lt(endOfDay)
+                .and("lastReviewTime").not().gte(startOfDay));
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
@@ -237,21 +245,60 @@ public class WordLearningProgressService {
     }
 
     /**
-     * 获取指定词书中未学习的单词（熟练度 = 0）
+     * 获取指定词书中初识的单词（熟练度 >= 0 且 < 0.5，且存在学习记录）
      * @param userId 用户ID
      * @param bookId 词书ID
-     * @return 未学习单词的学习进度列表
+     * @return 初识单词的学习进度列表
      */
-    public List<WordLearningProgress> getUnlearnedWordsFromBook(String userId, ObjectId bookId) {
+    public List<WordLearningProgress> getNewlyLearnedWordsFromBook(String userId, ObjectId bookId) {
         List<ObjectId> bookWordIds = getBookWordIds(bookId);
 
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("proficiency").is(0.0));
+                .and("proficiency").gte(0.0).lt(0.5));
 
         return mongoTemplate.find(query, WordLearningProgress.class);
     }
 
+    /**
+     * 获取词书中未学习的单词（没有学习记录的词）
+     * @param userId 用户ID
+     * @param bookId 词书ID
+     * @return 未学习单词列表
+     */
+    public List<WordLearningProgress> getUnlearnedWordsFromBook(String userId, ObjectId bookId) {
+        // 获取词书中所有的单词ID
+        List<ObjectId> allBookWordIds = getBookWordIds(bookId);
+
+        // 查询用户已经学习过的单词
+        Query learnedQuery = new Query(Criteria.where("userId").is(userId)
+                .and("wordId").in(allBookWordIds));
+        List<WordLearningProgress> learnedWords = mongoTemplate.find(learnedQuery, WordLearningProgress.class);
+
+        // 提取已学习单词的ID
+        List<ObjectId> learnedWordIds = learnedWords.stream()
+                .map(WordLearningProgress::getWordId)
+                .collect(Collectors.toList());
+
+        // 过滤出未学习的单词ID
+        List<ObjectId> unlearnedWordIds = allBookWordIds.stream()
+                .filter(wordId -> !learnedWordIds.contains(wordId))
+                .collect(Collectors.toList());
+
+        if (unlearnedWordIds.isEmpty()) {
+            return Collections.emptyList(); // 如果没有未学习的单词，返回空列表
+        }
+
+        // 为未学习的单词创建临时进度对象，并标记为非数据库对象
+        List<WordLearningProgress> unlearnedWords = unlearnedWordIds.stream()
+                .map(wordId -> {
+                    WordLearningProgress progress = new WordLearningProgress(userId, wordId);
+                    return progress;
+                })
+                .collect(Collectors.toList());
+
+        return unlearnedWords;
+    }
     // 内部类保持不变，因为它们不涉及 userId
     public static class UserLearningStats {
         private int totalWords;
@@ -341,21 +388,23 @@ public class WordLearningProgressService {
     }
 
     /**
-     * 获取指定词书中今天需要复习的单词数量
+     * 获取指定词书中今天需要复习的单词数量（包括逾期未复习的单词）
      * @param userId 用户ID
      * @param bookId 词书ID
-     * @return 今天需要复习的单词数量
+     * @return 今天需要复习的单词数量（包括逾期）
      */
     public int getTodayReviewWordsCountForBook(String userId, ObjectId bookId) {
         List<ObjectId> bookWordIds = getBookWordIds(bookId);
 
         Date today = new Date();
         Date startOfDay = new Date(today.getYear(), today.getMonth(), today.getDate());
-        Date endOfDay = new Date(startOfDay.getTime() + 24 * 60 * 60 * 1000);
+        Date endOfDay = new Date(today.getYear(), today.getMonth(), today.getDate() + 1);
 
+        // 修改查询条件，确保只包括今天需要复习但尚未复习的单词
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").in(bookWordIds)
-                .and("nextReviewTime").gte(startOfDay).lt(endOfDay));
+                .and("nextReviewTime").lt(endOfDay)
+                .and("lastReviewTime").not().gte(startOfDay)); // 添加条件：上次复习时间不是今天
 
         return (int) mongoTemplate.count(query, WordLearningProgress.class);
     }

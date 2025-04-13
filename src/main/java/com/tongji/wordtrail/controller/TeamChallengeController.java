@@ -127,6 +127,56 @@ public class TeamChallengeController {
     }
 
     /**
+     * 获取用户发出的所有挑战请求
+     */
+    @GetMapping("/requests/sent")
+    public ResponseEntity<?> getSentChallengeRequests() {
+        try {
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            List<Map<String, Object>> sentRequests = challengeService.getSentChallengeRequests(currentUserId);
+            return ResponseEntity.ok(sentRequests);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取发出的挑战请求失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 获取用户收到的所有挑战请求
+     */
+    @GetMapping("/requests/received")
+    public ResponseEntity<?> getReceivedChallengeRequests() {
+        try {
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            List<Map<String, Object>> receivedRequests = challengeService.getReceivedChallengeRequests(currentUserId);
+            return ResponseEntity.ok(receivedRequests);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取收到的挑战请求失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
      * 获取单个挑战详情
      */
     @GetMapping("/{challengeId}")

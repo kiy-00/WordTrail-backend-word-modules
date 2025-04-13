@@ -593,4 +593,76 @@ public class TeamChallengeService {
 
         return result;
     }
+
+    // 需要添加到TeamChallengeService类中的两个新方法
+
+    /**
+     * 获取用户发出的所有挑战请求
+     */
+    public List<Map<String, Object>> getSentChallengeRequests(String userId) {
+        // 查找用户创建的且状态为pending的挑战
+        List<TeamChallenge> sentRequests = challengeRepository.findByCreatorIdAndStatus(userId, "pending");
+
+        return sentRequests.stream().map(challenge -> {
+            Map<String, Object> requestInfo = new HashMap<>();
+            requestInfo.put("challengeId", challenge.getId());
+            requestInfo.put("name", challenge.getName());
+            requestInfo.put("description", challenge.getDescription());
+            requestInfo.put("dailyWordsTarget", challenge.getDailyWordsTarget());
+            requestInfo.put("requestDate", challenge.getCreateTime());
+            requestInfo.put("startDate", challenge.getStartDate());
+            requestInfo.put("endDate", challenge.getEndDate());
+            requestInfo.put("durationDays", calculateDurationDays(challenge.getStartDate(), challenge.getEndDate()));
+
+            // 添加接收者信息
+            String partnerId = challenge.getPartnerId();
+            requestInfo.put("partnerId", partnerId);
+
+            userRepository.findById(partnerId).ifPresent(partner -> {
+                requestInfo.put("partnerUsername", partner.getUsername());
+                requestInfo.put("partnerAvatar", partner.getAvatarUrl());
+            });
+
+            return requestInfo;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 获取用户收到的所有挑战请求
+     */
+    public List<Map<String, Object>> getReceivedChallengeRequests(String userId) {
+        // 查找用户作为伙伴且状态为pending的挑战
+        List<TeamChallenge> receivedRequests = challengeRepository.findByPartnerIdAndStatus(userId, "pending");
+
+        return receivedRequests.stream().map(challenge -> {
+            Map<String, Object> requestInfo = new HashMap<>();
+            requestInfo.put("challengeId", challenge.getId());
+            requestInfo.put("name", challenge.getName());
+            requestInfo.put("description", challenge.getDescription());
+            requestInfo.put("dailyWordsTarget", challenge.getDailyWordsTarget());
+            requestInfo.put("requestDate", challenge.getCreateTime());
+            requestInfo.put("startDate", challenge.getStartDate());
+            requestInfo.put("endDate", challenge.getEndDate());
+            requestInfo.put("durationDays", calculateDurationDays(challenge.getStartDate(), challenge.getEndDate()));
+
+            // 添加发送者信息
+            String creatorId = challenge.getCreatorId();
+            requestInfo.put("creatorId", creatorId);
+
+            userRepository.findById(creatorId).ifPresent(creator -> {
+                requestInfo.put("creatorUsername", creator.getUsername());
+                requestInfo.put("creatorAvatar", creator.getAvatarUrl());
+            });
+
+            return requestInfo;
+        }).collect(Collectors.toList());
+    }
+
+    /**
+     * 计算挑战的持续天数
+     */
+    private int calculateDurationDays(Date startDate, Date endDate) {
+        long diffInMillis = endDate.getTime() - startDate.getTime();
+        return (int) (diffInMillis / (1000 * 60 * 60 * 24)) + 1; // +1 是因为包括开始和结束日
+    }
 }
