@@ -31,6 +31,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
                 .antMatchers("/api/wordbooks/**").permitAll()
                 .antMatchers("/forum/**").permitAll()
                 .antMatchers("/account/**").permitAll()
+                .antMatchers("/api/checkin/**").permitAll()
                 // 其他所有请求都需要认证
                 .anyRequest().authenticated()
                 .and()
