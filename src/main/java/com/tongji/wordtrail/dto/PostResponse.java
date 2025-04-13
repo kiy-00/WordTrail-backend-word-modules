@@ -15,6 +15,7 @@ public class PostResponse {
     int voteCount;
 
     public PostResponse() {}
+
     public PostResponse(String id, String createdTime, String updatedTime, String title, String content, String author, String userAvatarUrl, int commentCount, int voteCount) {
         this.id = id;
         this.createdTime = createdTime;

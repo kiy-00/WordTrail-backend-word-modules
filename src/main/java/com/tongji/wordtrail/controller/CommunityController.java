@@ -88,13 +88,30 @@ public class CommunityController {
             return ResponseEntity.notFound().build();
         }
     }
+    // 获取帖子信息
     @GetMapping("/post/list")
     public ResponseEntity<?> getPostListByPage(@RequestParam(value = "page", defaultValue = "1") int page) {
-        List<PostResponse> postList = null;//communityService.getPostsByPage(page);
+        List<PostResponse> postList = communityService.getPostsByPage(page);
         Map<String, Object> responseData = new HashMap<>();
         responseData.put("code", 200);
         responseData.put("msg", null);
         responseData.put("data", postList);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 随机获取10条帖子
+    @GetMapping("/post/random")
+    public ResponseEntity<?> getRandomPost() {
+        List<PostResponse> postResponses = communityService.getRandomPostResponses();
+        return ResponseEntity.ok().body(postResponses);
+    }
+    // 获取帖子总数
+    @GetMapping("/post/count")
+    public ResponseEntity<?> getPostCount() {
+        long data = communityService.getPostCount();
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", data);
         return ResponseEntity.ok().body(responseData);
     }
 }

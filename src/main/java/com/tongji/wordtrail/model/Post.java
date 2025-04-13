@@ -72,13 +72,45 @@ public class Post {
     public void setFilePaths(List<String> filePaths) {
         this.filePaths = filePaths;
     }
-
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
-
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+    public LocalDateTime getUpdatedTime() {
+        return updatedTime;
+    }
+    public void setUpdatedTime(LocalDateTime updatedTime) {
+        this.updatedTime = updatedTime;
+    }
+
+    public String getAuthor() {
+        return author;
+    }
+
+    public void setAuthor(String author) {
+        this.author = author;
+    }
+
+    public String getUserAvatarUrl() {
+        return userAvatarUrl;
+    }
+    public void setUserAvatarUrl(String userAvatarUrl) {
+        this.userAvatarUrl = userAvatarUrl;
+    }
+
+    public int getCommentCount() {
+        return commentCount;
+    }
+    public void setCommentCount(int commentCount) {
+        this.commentCount = commentCount;
+    }
+    public int getVoteCount() {
+        return voteCount;
+    }
+    public void setVoteCount(int voteCount) {
+        this.voteCount = voteCount;
     }
 }
 
