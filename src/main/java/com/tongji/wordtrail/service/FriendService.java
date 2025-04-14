@@ -287,18 +287,21 @@ public class FriendService {
                     userInfo.put("username", user.getUsername());
                     userInfo.put("avatar", user.getAvatarUrl());
 
-                    // 标记是否已经是好友或有待处理的请求
+                    // 标记是否已经是好友
                     boolean isFriend = checkAlreadyFriends(currentUserId, user.getUserId());
                     userInfo.put("isFriend", isFriend);
 
-                    boolean hasPendingRequest = checkPendingRequest(currentUserId, user.getUserId());
-                    userInfo.put("hasPendingRequest", hasPendingRequest);
+                    // 添加与推荐接口一致的字段
+                    boolean hasSentRequest = checkPendingRequest(currentUserId, user.getUserId());
+                    userInfo.put("hasSentRequest", hasSentRequest);
+
+                    boolean hasReceivedRequest = checkPendingRequest(user.getUserId(), currentUserId);
+                    userInfo.put("hasReceivedRequest", hasReceivedRequest);
 
                     return userInfo;
                 })
                 .collect(Collectors.toList());
     }
-
     /**
      * 获取推荐的非好友用户
      * 返回一定数量的非好友用户列表

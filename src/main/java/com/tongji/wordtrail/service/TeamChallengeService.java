@@ -39,7 +39,13 @@ public class TeamChallengeService {
         this.friendRepository = friendRepository;
         this.userRepository = userRepository;
     }
-
+    /**
+     * 获取用户当前活跃的挑战数量
+     */
+    private int countActiveUserChallenges(String userId) {
+        List<TeamChallenge> challenges = challengeRepository.findActiveByUserIdInvolved(userId);
+        return challenges.size();
+    }
     /**
      * 创建组队挑战
      */
@@ -54,6 +60,11 @@ public class TeamChallengeService {
                 .orElseThrow(() -> new IllegalArgumentException("创建者用户不存在"));
         userRepository.findById(partnerId)
                 .orElseThrow(() -> new IllegalArgumentException("伙伴用户不存在"));
+
+        // 检查创建者的活跃挑战数量
+        if (countActiveUserChallenges(creatorId) >= 3) {
+            throw new IllegalArgumentException("您已达到最大活跃挑战数量限制（3个），无法创建新挑战");
+        }
 
         // 创建挑战
         TeamChallenge challenge = new TeamChallenge();
@@ -93,6 +104,11 @@ public class TeamChallengeService {
         // 验证挑战状态
         if (!"pending".equals(challenge.getStatus())) {
             throw new IllegalArgumentException("此挑战状态非待接受状态");
+        }
+
+        // 检查用户的活跃挑战数量
+        if (countActiveUserChallenges(userId) >= 3) {
+            throw new IllegalArgumentException("您已达到最大活跃挑战数量限制（3个），无法接受新挑战");
         }
 
         // 更新挑战状态为活跃
@@ -663,6 +679,6 @@ public class TeamChallengeService {
      */
     private int calculateDurationDays(Date startDate, Date endDate) {
         long diffInMillis = endDate.getTime() - startDate.getTime();
-        return (int) (diffInMillis / (1000 * 60 * 60 * 24)) + 1; // +1 是因为包括开始和结束日
+        return (int) (diffInMillis / (1000 * 60 * 60 * 24)); // +1 是因为包括开始和结束日
     }
 }
