@@ -78,7 +78,7 @@ public class LearningClockInController {
     }
 
     /**
-     * 获取今日打卡状态
+     * 获取今日打卡状态 - 修改为获取实时数据
      */
     @GetMapping("/today")
     public ResponseEntity<?> getTodayClockIn() {
@@ -92,7 +92,8 @@ public class LearningClockInController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
             }
 
-            LearningClockIn clockIn = clockInService.getOrCreateTodayClockIn(userId);
+            // 修改为使用实时更新方法
+            LearningClockIn clockIn = clockInService.getAndUpdateTodayClockIn(userId);
             return new ResponseEntity<>(clockIn, HttpStatus.OK);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
@@ -139,7 +140,7 @@ public class LearningClockInController {
     }
 
     /**
-     * 获取用户打卡统计信息
+     * 获取用户打卡统计信息 - 修改为获取实时数据
      */
     @GetMapping("/stats")
     public ResponseEntity<?> getClockInStats() {
@@ -153,7 +154,8 @@ public class LearningClockInController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
             }
 
-            Map<String, Object> stats = clockInService.getUserClockInStats(userId);
+            // 修改为使用实时更新方法
+            Map<String, Object> stats = clockInService.getUpdatedUserClockInStats(userId);
             return new ResponseEntity<>(stats, HttpStatus.OK);
         } catch (Exception e) {
             Map<String, String> errorResponse = new HashMap<>();
@@ -164,7 +166,7 @@ public class LearningClockInController {
     }
 
     /**
-     * 获取用户过去一周的打卡记录
+     * 获取用户过去一周的打卡记录 - 修改为获取实时数据
      */
     @GetMapping("/weekly")
     public ResponseEntity<?> getWeeklyClockIn() {
@@ -178,7 +180,8 @@ public class LearningClockInController {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
             }
 
-            List<Map<String, Object>> weeklyData = clockInService.getWeeklyClockInHistory(userId);
+            // 修改为使用实时更新方法
+            List<Map<String, Object>> weeklyData = clockInService.getUpdatedWeeklyClockInHistory(userId);
             return new ResponseEntity<>(weeklyData, HttpStatus.OK);
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
