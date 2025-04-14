@@ -21,4 +21,8 @@ public interface LearningClockInRepository extends JpaRepository<LearningClockIn
 
     // 查找用户所有打卡记录
     List<LearningClockIn> findByUserIdOrderByClockInDateDesc(String userId);
+    /**
+     * 查找特定用户的所有打卡记录
+     */
+    List<LearningClockIn> findByUserId(String userId);
 }

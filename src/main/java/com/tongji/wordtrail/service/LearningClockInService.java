@@ -66,14 +66,29 @@ public class LearningClockInService {
     }
 
     /**
-     * 获取或创建今日打卡记录
+     * 获取今日打卡记录 - 优先查找，不存在时才创建
      */
+    @Transactional
     public LearningClockIn getOrCreateTodayClockIn(String userId) {
         Date today = getTodayDate();
 
-        // 使用更可靠的查询方法
-        Optional<LearningClockIn> existingClockIn = clockInRepository.findByUserIdAndDate(userId, today);
+        // 首先查找今天是否已有打卡记录 - 使用日期格式化确保比较准确
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        String todayStr = sdf.format(today);
 
+        // 查找所有记录并筛选
+        List<LearningClockIn> allRecords = clockInRepository.findByUserId(userId);
+        Optional<LearningClockIn> existingRecord = allRecords.stream()
+                .filter(record -> sdf.format(record.getClockInDate()).equals(todayStr))
+                .findFirst();
+
+        if (existingRecord.isPresent()) {
+            // 找到今天的记录，直接返回
+            return existingRecord.get();
+        }
+
+        // 再次检查，使用SQL查询（确保日期比较正确）
+        Optional<LearningClockIn> existingClockIn = clockInRepository.findByUserIdAndDate(userId, today);
         if (existingClockIn.isPresent()) {
             return existingClockIn.get();
         }
@@ -107,7 +122,6 @@ public class LearningClockInService {
             Date yesterday = cal.getTime();
 
             // 简化比较，只比较年月日
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             boolean isYesterday = sdf.format(lastDate).equals(sdf.format(yesterday));
 
             if (isYesterday && lastClockIn.get().getStatus()) {
@@ -123,6 +137,13 @@ public class LearningClockInService {
         }
 
         try {
+            // 尝试保存新记录前，再次查询确认记录不存在
+            Optional<LearningClockIn> finalCheck = clockInRepository.findByUserIdAndDate(userId, today);
+            if (finalCheck.isPresent()) {
+                return finalCheck.get();
+            }
+
+            // 保存新记录
             return clockInRepository.save(clockIn);
         } catch (Exception e) {
             // 如果保存失败，很可能是因为同时有另一个请求也在尝试创建记录
@@ -132,14 +153,33 @@ public class LearningClockInService {
         }
     }
 
+
     /**
-     * 尝试打卡
+     * 尝试打卡 - 修改后的版本
+     * 关键改动：确保只更新而不是创建新记录
      */
     @Transactional
     public LearningClockIn tryClockIn(String userId) {
         try {
-            // 获取或创建今日打卡记录
-            LearningClockIn clockIn = getOrCreateTodayClockIn(userId);
+            Date today = getTodayDate();
+
+            // 首先查找今天是否已有打卡记录
+            Optional<LearningClockIn> existingClockIn = clockInRepository.findByUserIdAndDate(userId, today);
+
+            LearningClockIn clockIn;
+
+            if (existingClockIn.isPresent()) {
+                // 使用现有记录
+                clockIn = existingClockIn.get();
+            } else {
+                // 创建新记录（实际上这应该由getOrCreateTodayClockIn处理）
+                clockIn = getOrCreateTodayClockIn(userId);
+
+                // 校验是否成功创建
+                if (clockIn == null) {
+                    throw new RuntimeException("无法创建打卡记录");
+                }
+            }
 
             // 如果已经打卡成功，直接返回
             if (clockIn.getStatus()) {
@@ -167,12 +207,12 @@ public class LearningClockInService {
             // 更新打卡信息
             clockIn.setUpdateTime(new Date());
 
+            // 保存更新后的记录
             return clockInRepository.save(clockIn);
         } catch (Exception e) {
             throw new RuntimeException("打卡操作失败: " + e.getMessage(), e);
         }
     }
-
     /**
      * 获取用户打卡统计信息
      */
