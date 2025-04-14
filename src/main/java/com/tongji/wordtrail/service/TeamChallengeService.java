@@ -28,6 +28,10 @@ public class TeamChallengeService {
     @Autowired
     private LearningRecordService learningRecordService;
 
+    // 在TeamChallengeService类中添加以下依赖注入
+    @Autowired
+    private LearningClockInService learningClockInService;
+
     @Autowired
     public TeamChallengeService(
             TeamChallengeRepository challengeRepository,
@@ -170,13 +174,23 @@ public class TeamChallengeService {
                 challengeInfo.put("partnerAvatar", partner.getAvatarUrl());
             });
 
-            // 添加今日打卡状态
+            // 添加今日打卡状态和学习单词数量
             Date today = new Date();
             Optional<TeamChallengeClockIn> todayClockIn = clockInRepository
                     .findByChallengeIdAndUserIdAndClockInDate(challenge.getId(), userId, today);
 
             challengeInfo.put("todayClockInStatus", todayClockIn.isPresent() && todayClockIn.get().isStatus());
-            challengeInfo.put("wordsCompleted", todayClockIn.map(TeamChallengeClockIn::getWordsCompleted).orElse(0));
+
+            // 如果没有打卡记录，获取今日实际学习的单词数量
+            int wordsCompleted = 0;
+            if (todayClockIn.isPresent()) {
+                wordsCompleted = todayClockIn.get().getWordsCompleted();
+            } else if ("active".equals(challenge.getStatus())) {
+                // 修改这里：从个人打卡系统获取数据，而不是使用 LearningRecordService
+                Map<String, Object> todayStats = learningClockInService.getUpdatedUserClockInStats(userId);
+                wordsCompleted = ((Number)todayStats.getOrDefault("newWordsCompleted", 0)).intValue();
+            }
+            challengeInfo.put("wordsCompleted", wordsCompleted);
 
             // 添加伙伴今日打卡状态
             Optional<TeamChallengeClockIn> partnerTodayClockIn = clockInRepository
@@ -279,7 +293,7 @@ public class TeamChallengeService {
     }
 
     /**
-     * 组队打卡 - 使用系统记录的实际学习数据，只计算"learn"类型的记录
+     * 组队打卡 - 修改为使用个人打卡系统中的学习数据
      */
     @Transactional
     public Map<String, Object> clockIn(Long challengeId, String userId) {
@@ -302,14 +316,17 @@ public class TeamChallengeService {
             throw new IllegalArgumentException("挑战已结束，无法打卡");
         }
 
-        // 获取用户今日学习记录并计算学习单词数量
-        List<LearningRecord> todayRecords = learningRecordService.getTodayLearningRecords(userId);
+        // 修改这里：使用个人打卡系统获取新单词学习数量
+        // 原代码:
+        // List<LearningRecord> todayRecords = learningRecordService.getTodayLearningRecords(userId);
+        // int wordsCompleted = todayRecords.stream()
+        //        .filter(record -> "learn".equals(record.getType()))
+        //        .mapToInt(LearningRecord::getCount)
+        //        .sum();
 
-        // 只计算"learn"类型的记录
-        int wordsCompleted = todayRecords.stream()
-                .filter(record -> "learn".equals(record.getType()))
-                .mapToInt(LearningRecord::getCount)
-                .sum();
+        // 使用与个人打卡系统相同的方法获取今日学习的单词数
+        Map<String, Object> todayStats = learningClockInService.getUpdatedUserClockInStats(userId);
+        int wordsCompleted = ((Number)todayStats.getOrDefault("newWordsCompleted", 0)).intValue();
 
         // 获取今日的打卡记录，若不存在则创建
         TeamChallengeClockIn clockIn = clockInRepository
