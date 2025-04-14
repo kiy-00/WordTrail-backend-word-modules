@@ -247,7 +247,7 @@ public class LearningClockInService {
     }
 
     /**
-     * 计算今天复习的单词数量
+     * 计算今天复习的单词数量 - 修复版
      */
     private int countTodayWordsReviewed(String userId) {
         Date today = getTodayDate();
@@ -256,7 +256,7 @@ public class LearningClockInService {
         Query query = new Query();
         query.addCriteria(Criteria.where("userId").is(userId));
         query.addCriteria(Criteria.where("reviewHistory").elemMatch(
-                Criteria.where("time").gte(today).lt(tomorrow)
+                Criteria.where("reviewTime").gte(today).lt(tomorrow)  // 使用正确的reviewTime字段
         ));
 
         return (int) mongoTemplate.count(query, WordLearningProgress.class);
