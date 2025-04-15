@@ -340,4 +340,70 @@ public class FriendController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
         }
     }
+
+    /**
+     * 搜索用户
+     * 根据用户输入的内容与用户名进行匹配查询
+     */
+    @GetMapping("/search")
+    public ResponseEntity<?> searchUsers(@RequestParam String keyword) {
+        try {
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            // 关键词为空时返回错误
+            if (keyword == null || keyword.trim().isEmpty()) {
+                Map<String, String> error = new HashMap<>();
+                error.put("message", "搜索关键词不能为空");
+                error.put("code", "INVALID_PARAMETER");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+            }
+
+            List<Map<String, Object>> users = friendService.searchUsersByUsername(keyword, currentUserId);
+            return ResponseEntity.ok(users);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "搜索用户失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
+
+    /**
+     * 推荐非好友用户
+     * 返回一些还不是当前用户好友的其他用户
+     */
+    @GetMapping("/recommend")
+    public ResponseEntity<?> recommendUsers(
+            @RequestParam(defaultValue = "10") int limit) {
+        try {
+            // 获取当前认证用户ID
+            String currentUserId = JwtUtil.getCurrentUserId();
+            if (currentUserId == null) {
+                Map<String, String> errorMap = new HashMap<>();
+                errorMap.put("message", "未认证的用户");
+                errorMap.put("code", "UNAUTHORIZED");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorMap);
+            }
+
+            // 限制推荐数量在合理范围内
+            if (limit <= 0 || limit > 50) {
+                limit = 10; // 使用默认值
+            }
+
+            List<Map<String, Object>> recommendedUsers = friendService.getRecommendedUsers(currentUserId, limit);
+            return ResponseEntity.ok(recommendedUsers);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("message", "获取推荐用户失败: " + e.getMessage());
+            error.put("code", "SERVER_ERROR");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+        }
+    }
 }

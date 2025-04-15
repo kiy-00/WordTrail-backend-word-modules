@@ -268,4 +268,78 @@ public class FriendService {
                 .map(request -> "pending".equals(request.getStatus()))
                 .orElse(false);
     }
+
+    // 需要添加到FriendService类中的新方法
+
+    /**
+     * 根据用户名关键词搜索用户
+     * 返回匹配到的用户列表（不包括自己）
+     */
+    public List<Map<String, Object>> searchUsersByUsername(String keyword, String currentUserId) {
+        // 查找用户名包含关键词的用户
+        List<User> matchedUsers = userRepository.findByUsernameContaining(keyword);
+
+        return matchedUsers.stream()
+                .filter(user -> !user.getUserId().equals(currentUserId)) // 排除自己
+                .map(user -> {
+                    Map<String, Object> userInfo = new HashMap<>();
+                    userInfo.put("id", user.getUserId());
+                    userInfo.put("username", user.getUsername());
+                    userInfo.put("avatar", user.getAvatarUrl());
+
+                    // 标记是否已经是好友
+                    boolean isFriend = checkAlreadyFriends(currentUserId, user.getUserId());
+                    userInfo.put("isFriend", isFriend);
+
+                    // 添加与推荐接口一致的字段
+                    boolean hasSentRequest = checkPendingRequest(currentUserId, user.getUserId());
+                    userInfo.put("hasSentRequest", hasSentRequest);
+
+                    boolean hasReceivedRequest = checkPendingRequest(user.getUserId(), currentUserId);
+                    userInfo.put("hasReceivedRequest", hasReceivedRequest);
+
+                    return userInfo;
+                })
+                .collect(Collectors.toList());
+    }
+    /**
+     * 获取推荐的非好友用户
+     * 返回一定数量的非好友用户列表
+     */
+    public List<Map<String, Object>> getRecommendedUsers(String userId, int limit) {
+        // 获取当前用户的好友ID列表
+        List<String> friendIds = friendRepository.findByUserIdAndStatus(userId, "active")
+                .stream()
+                .map(UserFriend::getFriendId)
+                .collect(Collectors.toList());
+
+        // 添加自己的ID，确保自己不在推荐列表中
+        friendIds.add(userId);
+
+        // 处理空列表情况
+        if (friendIds.isEmpty()) {
+            friendIds = Collections.singletonList(userId); // 至少排除自己
+        }
+
+        // 获取不是好友的用户
+        List<User> nonFriendUsers = userRepository.findUsersNotInIds(friendIds, limit);
+
+        return nonFriendUsers.stream()
+                .map(user -> {
+                    Map<String, Object> userInfo = new HashMap<>();
+                    userInfo.put("id", user.getUserId());
+                    userInfo.put("username", user.getUsername());
+                    userInfo.put("avatar", user.getAvatarUrl());
+
+                    // 检查是否有待处理的好友请求
+                    boolean hasSentRequest = checkPendingRequest(userId, user.getUserId());
+                    userInfo.put("hasSentRequest", hasSentRequest);
+
+                    boolean hasReceivedRequest = checkPendingRequest(user.getUserId(), userId);
+                    userInfo.put("hasReceivedRequest", hasReceivedRequest);
+
+                    return userInfo;
+                })
+                .collect(Collectors.toList());
+    }
 }

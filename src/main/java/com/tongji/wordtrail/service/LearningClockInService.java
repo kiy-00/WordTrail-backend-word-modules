@@ -66,14 +66,29 @@ public class LearningClockInService {
     }
 
     /**
-     * 获取或创建今日打卡记录
+     * 获取今日打卡记录 - 只获取不更新
      */
+    @Transactional
     public LearningClockIn getOrCreateTodayClockIn(String userId) {
         Date today = getTodayDate();
 
-        // 使用更可靠的查询方法
-        Optional<LearningClockIn> existingClockIn = clockInRepository.findByUserIdAndDate(userId, today);
+        // 首先查找今天是否已有打卡记录 - 使用日期格式化确保比较准确
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        String todayStr = sdf.format(today);
 
+        // 查找所有记录并筛选
+        List<LearningClockIn> allRecords = clockInRepository.findByUserId(userId);
+        Optional<LearningClockIn> existingRecord = allRecords.stream()
+                .filter(record -> sdf.format(record.getClockInDate()).equals(todayStr))
+                .findFirst();
+
+        if (existingRecord.isPresent()) {
+            // 找到今天的记录，直接返回
+            return existingRecord.get();
+        }
+
+        // 再次检查，使用SQL查询（确保日期比较正确）
+        Optional<LearningClockIn> existingClockIn = clockInRepository.findByUserIdAndDate(userId, today);
         if (existingClockIn.isPresent()) {
             return existingClockIn.get();
         }
@@ -107,7 +122,6 @@ public class LearningClockInService {
             Date yesterday = cal.getTime();
 
             // 简化比较，只比较年月日
-            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             boolean isYesterday = sdf.format(lastDate).equals(sdf.format(yesterday));
 
             if (isYesterday && lastClockIn.get().getStatus()) {
@@ -123,6 +137,13 @@ public class LearningClockInService {
         }
 
         try {
+            // 尝试保存新记录前，再次查询确认记录不存在
+            Optional<LearningClockIn> finalCheck = clockInRepository.findByUserIdAndDate(userId, today);
+            if (finalCheck.isPresent()) {
+                return finalCheck.get();
+            }
+
+            // 保存新记录
             return clockInRepository.save(clockIn);
         } catch (Exception e) {
             // 如果保存失败，很可能是因为同时有另一个请求也在尝试创建记录
@@ -133,13 +154,64 @@ public class LearningClockInService {
     }
 
     /**
-     * 尝试打卡
+     * 获取并更新今日打卡记录 - 包括最新的单词学习和复习数量
+     */
+    @Transactional
+    public LearningClockIn getAndUpdateTodayClockIn(String userId) {
+        // 先获取或创建今日打卡记录
+        LearningClockIn clockIn = getOrCreateTodayClockIn(userId);
+
+        // 重新计算今天学习的新单词和复习单词数量
+        int newWordsLearned = countTodayNewWordsLearned(userId);
+        int wordsReviewed = countTodayWordsReviewed(userId);
+
+        // 更新计数
+        clockIn.setNewWordsCompleted(newWordsLearned);
+        clockIn.setReviewWordsCompleted(wordsReviewed);
+
+        // 判断是否达标
+        LearningGoal goal = getLearningGoal(userId);
+        boolean newWordsAchieved = newWordsLearned >= goal.getDailyNewWordsGoal();
+        boolean reviewWordsAchieved = wordsReviewed >= goal.getDailyReviewWordsGoal();
+
+        // 如果两个目标都达到，设置打卡成功
+        if (newWordsAchieved && reviewWordsAchieved) {
+            clockIn.setStatus(true);
+        }
+
+        // 更新时间
+        clockIn.setUpdateTime(new Date());
+
+        // 保存更新
+        return clockInRepository.save(clockIn);
+    }
+
+    /**
+     * 尝试打卡 - 修改后的版本
+     * 关键改动：确保只更新而不是创建新记录
      */
     @Transactional
     public LearningClockIn tryClockIn(String userId) {
         try {
-            // 获取或创建今日打卡记录
-            LearningClockIn clockIn = getOrCreateTodayClockIn(userId);
+            Date today = getTodayDate();
+
+            // 首先查找今天是否已有打卡记录
+            Optional<LearningClockIn> existingClockIn = clockInRepository.findByUserIdAndDate(userId, today);
+
+            LearningClockIn clockIn;
+
+            if (existingClockIn.isPresent()) {
+                // 使用现有记录
+                clockIn = existingClockIn.get();
+            } else {
+                // 创建新记录（实际上这应该由getOrCreateTodayClockIn处理）
+                clockIn = getOrCreateTodayClockIn(userId);
+
+                // 校验是否成功创建
+                if (clockIn == null) {
+                    throw new RuntimeException("无法创建打卡记录");
+                }
+            }
 
             // 如果已经打卡成功，直接返回
             if (clockIn.getStatus()) {
@@ -167,6 +239,7 @@ public class LearningClockInService {
             // 更新打卡信息
             clockIn.setUpdateTime(new Date());
 
+            // 保存更新后的记录
             return clockInRepository.save(clockIn);
         } catch (Exception e) {
             throw new RuntimeException("打卡操作失败: " + e.getMessage(), e);
@@ -174,13 +247,33 @@ public class LearningClockInService {
     }
 
     /**
-     * 获取用户打卡统计信息
+     * 获取用户打卡统计信息 - 原始方法，不更新数据
      */
     public Map<String, Object> getUserClockInStats(String userId) {
         Map<String, Object> stats = new HashMap<>();
 
         // 获取今日打卡状态
         LearningClockIn todayClockIn = getOrCreateTodayClockIn(userId);
+        stats.put("todayStatus", todayClockIn.getStatus());
+        stats.put("streakDays", todayClockIn.getStreakDays());
+        stats.put("newWordsTarget", todayClockIn.getNewWordsTarget());
+        stats.put("newWordsCompleted", todayClockIn.getNewWordsCompleted());
+        stats.put("reviewWordsTarget", todayClockIn.getReviewWordsTarget());
+        stats.put("reviewWordsCompleted", todayClockIn.getReviewWordsCompleted());
+
+        // 可以添加更多统计信息...
+
+        return stats;
+    }
+
+    /**
+     * 获取用户打卡统计信息 - 实时更新版
+     */
+    public Map<String, Object> getUpdatedUserClockInStats(String userId) {
+        Map<String, Object> stats = new HashMap<>();
+
+        // 获取并更新今日打卡状态
+        LearningClockIn todayClockIn = getAndUpdateTodayClockIn(userId);
         stats.put("todayStatus", todayClockIn.getStatus());
         stats.put("streakDays", todayClockIn.getStreakDays());
         stats.put("newWordsTarget", todayClockIn.getNewWordsTarget());
@@ -207,7 +300,7 @@ public class LearningClockInService {
     }
 
     /**
-     * 计算今天复习的单词数量
+     * 计算今天复习的单词数量 - 修复版
      */
     private int countTodayWordsReviewed(String userId) {
         Date today = getTodayDate();
@@ -216,7 +309,7 @@ public class LearningClockInService {
         Query query = new Query();
         query.addCriteria(Criteria.where("userId").is(userId));
         query.addCriteria(Criteria.where("reviewHistory").elemMatch(
-                Criteria.where("time").gte(today).lt(tomorrow)
+                Criteria.where("reviewTime").gte(today).lt(tomorrow)  // 使用正确的reviewTime字段
         ));
 
         return (int) mongoTemplate.count(query, WordLearningProgress.class);
@@ -254,7 +347,7 @@ public class LearningClockInService {
     }
 
     /**
-     * 获取用户过去一周的打卡记录
+     * 获取用户过去一周的打卡记录 - 原始方法，不更新数据
      */
     public List<Map<String, Object>> getWeeklyClockInHistory(String userId) {
         // 计算一周前的日期
@@ -305,6 +398,63 @@ public class LearningClockInService {
     }
 
     /**
+     * 获取用户过去一周的打卡记录 - 实时更新版
+     */
+    public List<Map<String, Object>> getUpdatedWeeklyClockInHistory(String userId) {
+        // 先更新今天的记录
+        LearningClockIn todayClockIn = getAndUpdateTodayClockIn(userId);
+
+        // 计算一周前的日期
+        Calendar cal = Calendar.getInstance();
+        cal.add(Calendar.DAY_OF_YEAR, -6); // 包括今天，共7天
+        Date weekStart = cal.getTime();
+
+        // 查询一周内的所有打卡记录（除了今天的）
+        List<LearningClockIn> weekRecords = clockInRepository.findAll().stream()
+                .filter(record -> record.getUserId().equals(userId))
+                .filter(record -> !isSameDay(record.getClockInDate(), todayClockIn.getClockInDate())) // 排除今天的记录
+                .filter(record -> record.getClockInDate().after(weekStart) || isSameDay(record.getClockInDate(), weekStart))
+                .collect(Collectors.toList());
+
+        // 添加今天更新后的记录
+        weekRecords.add(todayClockIn);
+
+        // 构建一周每天的打卡记录
+        List<Map<String, Object>> result = new ArrayList<>();
+        SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+
+        // 处理过去7天的记录
+        for (int i = 0; i < 7; i++) {
+            Calendar dateCal = Calendar.getInstance();
+            dateCal.add(Calendar.DAY_OF_YEAR, -i);
+            Date currentDate = dateCal.getTime();
+            String dateString = dateFormat.format(currentDate);
+
+            Map<String, Object> dayRecord = new HashMap<>();
+            dayRecord.put("date", dateString);
+
+            // 查找这一天的打卡记录
+            Optional<LearningClockIn> record = weekRecords.stream()
+                    .filter(r -> isSameDay(r.getClockInDate(), currentDate))
+                    .findFirst();
+
+            if (record.isPresent()) {
+                dayRecord.put("status", record.get().getStatus());
+                dayRecord.put("newWordsCompleted", record.get().getNewWordsCompleted());
+                dayRecord.put("reviewWordsCompleted", record.get().getReviewWordsCompleted());
+            } else {
+                dayRecord.put("status", false);
+                dayRecord.put("newWordsCompleted", 0);
+                dayRecord.put("reviewWordsCompleted", 0);
+            }
+
+            result.add(dayRecord);
+        }
+
+        return result;
+    }
+
+    /**
      * 判断两个日期是否是同一天
      */
     private boolean isSameDay(Date date1, Date date2) {
@@ -313,5 +463,112 @@ public class LearningClockInService {
         Calendar cal2 = Calendar.getInstance();
         cal2.setTime(date2);
         return isSameDay(cal1, cal2);
+    }
+
+    /**
+     * 计算特定日期的新单词学习数量
+     *
+     * @param userId 用户ID
+     * @param date   指定日期
+     * @return 该日期学习的新单词数量
+     */
+    private int countNewWordsLearnedOnDate(String userId, Date date) {
+        // 获取指定日期的0点
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfDay = cal.getTime();
+
+        // 获取指定日期的下一天0点
+        cal.add(Calendar.DAY_OF_YEAR, 1);
+        Date endOfDay = cal.getTime();
+
+        Query query = new Query(Criteria.where("userId").is(userId)
+                .and("firstLearnTime").gte(startOfDay).lt(endOfDay));
+
+        return (int) mongoTemplate.count(query, WordLearningProgress.class);
+    }
+
+    /**
+     * 计算特定日期的单词复习数量
+     *
+     * @param userId 用户ID
+     * @param date   指定日期
+     * @return 该日期复习的单词数量
+     */
+    private int countWordsReviewedOnDate(String userId, Date date) {
+        // 获取指定日期的0点
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(date);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        Date startOfDay = cal.getTime();
+
+        // 获取指定日期的下一天0点
+        cal.add(Calendar.DAY_OF_YEAR, 1);
+        Date endOfDay = cal.getTime();
+
+        Query query = new Query();
+        query.addCriteria(Criteria.where("userId").is(userId));
+        query.addCriteria(Criteria.where("reviewHistory").elemMatch(
+                Criteria.where("reviewTime").gte(startOfDay).lt(endOfDay)
+        ));
+
+        return (int) mongoTemplate.count(query, WordLearningProgress.class);
+    }
+
+    /**
+     * 更新特定日期的打卡记录
+     *
+     * @param userId 用户ID
+     * @param date   指定日期
+     * @return 更新后的打卡记录，如果该日期没有记录则返回null
+     */
+    @Transactional
+    public LearningClockIn updateClockInForDate(String userId, Date date) {
+        // 使用日期格式化确保比较准确
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        String dateStr = sdf.format(date);
+
+        // 查找该日期的记录
+        List<LearningClockIn> allRecords = clockInRepository.findByUserId(userId);
+        Optional<LearningClockIn> existingRecord = allRecords.stream()
+                .filter(record -> sdf.format(record.getClockInDate()).equals(dateStr))
+                .findFirst();
+
+        if (!existingRecord.isPresent()) {
+            return null; // 该日期没有记录
+        }
+
+        LearningClockIn clockIn = existingRecord.get();
+
+        // 重新计算该日期的学习和复习数量
+        int newWordsLearned = countNewWordsLearnedOnDate(userId, date);
+        int wordsReviewed = countWordsReviewedOnDate(userId, date);
+
+        // 更新计数
+        clockIn.setNewWordsCompleted(newWordsLearned);
+        clockIn.setReviewWordsCompleted(wordsReviewed);
+
+        // 判断是否达标
+        LearningGoal goal = getLearningGoal(userId);
+        boolean newWordsAchieved = newWordsLearned >= goal.getDailyNewWordsGoal();
+        boolean reviewWordsAchieved = wordsReviewed >= goal.getDailyReviewWordsGoal();
+
+        // 如果两个目标都达到，设置打卡成功
+        if (newWordsAchieved && reviewWordsAchieved) {
+            clockIn.setStatus(true);
+        }
+
+        // 更新时间
+        clockIn.setUpdateTime(new Date());
+
+        // 保存更新
+        return clockInRepository.save(clockIn);
     }
 }
