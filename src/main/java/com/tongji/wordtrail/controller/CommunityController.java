@@ -5,6 +5,7 @@ import com.tongji.wordtrail.dto.AdminWordbooksResponse;
 import com.tongji.wordtrail.dto.DeletePostRequest;
 import com.tongji.wordtrail.dto.PostRequest;
 import com.tongji.wordtrail.dto.PostResponse;
+import com.tongji.wordtrail.model.Favourite;
 import com.tongji.wordtrail.model.Post;
 import com.tongji.wordtrail.service.CommunityService;
 import org.slf4j.Logger;
@@ -114,4 +115,103 @@ public class CommunityController {
         responseData.put("data", data);
         return ResponseEntity.ok().body(responseData);
     }
+    // 返回某用户所有帖子中的第n页帖子
+    @GetMapping("/post/user")
+    public ResponseEntity<?> getPostUser(@RequestParam("uid") String uid, @RequestParam("page") int page) {
+        List<PostResponse> postList = communityService.getPostsByUserPage(uid, page);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", postList);
+        return ResponseEntity.ok().body(responseData);
+
+    }
+    // 返回关键字搜索后的帖子
+    @GetMapping("/post/search")
+    public ResponseEntity<?> getPostSearch(@RequestParam("keyword") String keyword, @RequestParam("page") int page) {
+        List<PostResponse> postList = communityService.getPostSearch(keyword, page);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", postList);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 返回关键字搜索后的帖子
+    @GetMapping("/post/search-count")
+    public ResponseEntity<?> getPostSearchCount(@RequestParam("keyword") String keyword) {
+        int dataCount = communityService.getPostSearchCount(keyword);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", dataCount);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 返回帖子点赞总数
+    @GetMapping("/post/vote")
+    public ResponseEntity<?> getPostVote(@RequestParam("postId") String postId, @RequestParam("userId") String userId, @RequestParam("upvote") String upvote) {
+        int dataCount = communityService.getPostVoteCount(postId, userId, upvote);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", dataCount);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 返回用户是否点赞
+    @GetMapping("/post/isVoted")
+    public ResponseEntity<?> getPostIsVoted(@RequestParam("postId") String postId, @RequestParam("userId") String userId) {
+        int dataCount = communityService.getPostVote(postId, userId);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", dataCount);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 返回总点赞数量
+    @GetMapping("/post/voteCount")
+    public ResponseEntity<?> getPostVoteCount(@RequestParam("postId") String postId) {
+        int dataCount = communityService.getPostVoteCount(postId);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", dataCount);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 收藏帖子
+    @PostMapping("/post/favorite")
+    public ResponseEntity<?> addFavourite(@RequestParam("postId") String postId, @RequestParam("userId") String userId) {
+        communityService.addFavourite(postId, userId);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", 200);
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 取消收藏
+    @DeleteMapping("/post/deleteFavorite")
+    public ResponseEntity<?> deleteFavorite(@RequestParam("postId") String postId, @RequestParam("userId") String userId) {
+        Map<String, Object> responseData = new HashMap<>();
+        if (communityService.deleteFavourite(postId, userId)) {
+            responseData.put("code", 200);
+            responseData.put("msg", null);
+            responseData.put("data", 200);
+            return ResponseEntity.ok().body(responseData);
+        }
+        else {
+            responseData.put("code", 404);
+            responseData.put("msg", 404);
+            return ResponseEntity.ok().body(responseData);
+        }
+
+    }
+    // 罗列所有的收藏
+    @PostMapping("/post/listFavorite")
+    public ResponseEntity<?> getFavoriteList(@RequestParam("postId") String postId, @RequestParam("userId") String userId) {
+        List<Favourite> favoriteList = communityService.getFavoriteList(postId, userId);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", favoriteList);
+        return ResponseEntity.ok().body(responseData);
+    }
+
 }
