@@ -170,7 +170,7 @@ public class CommunityService {
         return voteRepository.findByPostId(postId).size();
     }
     public void addFavourite(String postId, String userId) {
-        Favourite favourite = new Favourite(userId, postId);
+        Favourite favourite = new Favourite(userId, postId, LocalDateTime.now(), LocalDateTime.now());
         favouriteRepository.save(favourite);
     }
     public boolean deleteFavourite(String postId, String userId) {
