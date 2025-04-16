@@ -42,19 +42,16 @@ public class SystemWordbookService {
         try {
             ObjectId objectId = new ObjectId(id);
             return Optional.ofNullable(mongoTemplate.findById(objectId, Document.class, "system_wordbooks"))
+                    .filter(Objects::nonNull) // 过滤掉 null 的 document
                     .map(document -> {
                         Map<String, Object> result = new HashMap<>();
 
-                        // 处理_id字段，转换为字符串
                         result.put("id", document.getObjectId("_id").toString());
-
-                        // 复制其他普通字段
                         result.put("language", document.getString("language"));
                         result.put("bookName", document.getString("bookName"));
                         result.put("description", document.getString("description"));
                         result.put("createUser", document.getString("createUser"));
 
-                        // 处理words字段，确保ObjectId列表被正确转换
                         List<ObjectId> words = (List<ObjectId>) document.get("words");
                         if (words != null) {
                             List<String> wordIds = words.stream()
@@ -67,6 +64,7 @@ public class SystemWordbookService {
 
                         return result;
                     });
+
         } catch (IllegalArgumentException e) {
             log.error("Invalid ObjectId format: {}", id, e);
             return Optional.empty();

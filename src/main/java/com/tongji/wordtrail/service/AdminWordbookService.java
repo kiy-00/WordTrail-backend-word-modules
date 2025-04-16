@@ -17,10 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -92,5 +89,35 @@ public class AdminWordbookService {
     public Words createWord(Words word) {
         return mongoTemplate.save(word, "words");
     }
+    // 创建词书
+    public List<ObjectId> createWord(Map<String, Object> wordbookData) {
+        List<Map<String, Object>> wordList = (List<Map<String, Object>>) wordbookData.get("words");
+        List<ObjectId> insertedIds = new ArrayList<>();
+
+        for (Map<String, Object> wordMap : wordList) {
+            Words word = new Words();
+            word.setWord((String) wordMap.get("word"));
+            word.setLanguage((String) wordMap.get("language"));
+            word.setPhonetics((List<Words.Phonetic>) wordMap.get("phonetics"));
+            word.setSynonyms((List<String>) wordMap.get("synonyms"));
+            word.setAntonyms((List<String>) wordMap.get("antonyms"));
+            word.setPartOfSpeechList((List<Words.PartOfSpeech>) wordMap.get("partOfSpeechList"));
+            word.setTags((List<String>) wordMap.get("tags"));
+            word.setDifficulty((Integer) wordMap.get("difficulty"));
+
+            Words saved = mongoTemplate.save(word, "words");
+            insertedIds.add(saved.getId());  // 拿到 MongoDB 自动生成的 id
+        }
+
+        return insertedIds;
+    }
+    public Map<String, Object> createSystemWordbook(Map<String, Object> wordbookData) {
+        List<ObjectId> words = createWord(wordbookData);
+        wordbookData.put("createUser", "system");
+        wordbookData.remove("words");
+        wordbookData.put("words", words);
+        return systemWordbookService.createSystemWordbook(wordbookData);
+    }
+
 
 }

@@ -11,8 +11,7 @@ import java.util.List;
 @Document(collection = "words")
 public class Words {
     @Id
-    @JsonSerialize(using = ToStringSerializer.class)
-    private String id;  // 改成 String，方便 JSON 传递
+    private ObjectId id; // 使用 ObjectId 类型
 
     private String word;
     private String language;
@@ -24,8 +23,8 @@ public class Words {
     private List<PartOfSpeech> partOfSpeechList;
 
     // Getter 和 Setter
-    public String getId() { return id; }
-    public void setId(String id) { this.id = id; }
+    public ObjectId getId() { return id; }
+    public void setId(ObjectId id) { this.id = id; }
 
     public String getWord() { return word; }
     public void setWord(String word) { this.word = word; }

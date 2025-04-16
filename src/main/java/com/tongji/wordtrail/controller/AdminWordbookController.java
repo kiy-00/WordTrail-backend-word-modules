@@ -57,23 +57,37 @@ public class AdminWordbookController {
 
     // 获取词汇详情
     @GetMapping("/{wordbookId}")
-    public ResponseEntity<List<Words>> getWords(@PathVariable ObjectId wordbookId) {
-        try {
-            List<Words> words = adminWordbookService.findWords(wordbookId);
-            return ResponseEntity.ok(words);
-        } catch (Exception e) {
-            logger.error("Finding wordbooks failed", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+    public ResponseEntity<Map<String, Object>> getWords(@PathVariable String wordbookId) {
+        Optional<Map<String, Object>> result = systemWordbookService.getSystemWordbook(wordbookId);
+        if (result.isPresent()) {
+            // 获取 words 列表
+            Map<String, Object> wordbookData = result.get();
+            ObjectId id = new ObjectId(wordbookId);
+            List<Words> words = adminWordbookService.findWords(id);
+            wordbookData.remove("words");
+            wordbookData.put("words", words);
+            return ResponseEntity.ok(result.get());
+        } else {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Wordbook not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
         }
     }
+
+
     // 添加词书
     @PostMapping("/addWordbook")
-    public ResponseEntity<Map<String, Object>> addWordbooks(@RequestBody Map<String, Object> wordbookData) {
+    public ResponseEntity<?> addWordbooks(@RequestBody Map<String, Object> wordbookData) {
         try {
             logger.info("Add wordbooks...");
-            Map<String, Object> response = systemWordbookService.createSystemWordbook(wordbookData);
-            logger.info("Add wordbooks successfully");
-            return ResponseEntity.ok(response);
+            Map<String, Object> result = adminWordbookService.createSystemWordbook(wordbookData);
+            if (result != null) {
+                return ResponseEntity.ok(result);
+            } else {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Wordbook not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
         } catch(Exception e) {
             logger.error("Adding wordbooks failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
