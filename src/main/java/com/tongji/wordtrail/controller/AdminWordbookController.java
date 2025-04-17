@@ -64,6 +64,10 @@ public class AdminWordbookController {
             Map<String, Object> wordbookData = result.get();
             ObjectId id = new ObjectId(wordbookId);
             List<Words> words = adminWordbookService.findWords(id);
+            for (Words word : words) {
+                Object wordId = word.getId();
+
+            }
             wordbookData.remove("words");
             wordbookData.put("words", words);
             return ResponseEntity.ok(result.get());

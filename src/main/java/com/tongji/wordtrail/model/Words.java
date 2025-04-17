@@ -10,6 +10,7 @@ import java.util.List;
 
 @Document(collection = "words")
 public class Words {
+    @JsonSerialize(using = ToStringSerializer.class)
     @Id
     private ObjectId id; // 使用 ObjectId 类型
 
