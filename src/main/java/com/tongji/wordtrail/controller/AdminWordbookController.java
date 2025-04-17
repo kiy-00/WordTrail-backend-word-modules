@@ -57,69 +57,72 @@ public class AdminWordbookController {
 
     // 获取词汇详情
     @GetMapping("/{wordbookId}")
-    public ResponseEntity<List<Words>> getWords(@PathVariable ObjectId wordbookId) {
-        try {
-            List<Words> words = adminWordbookService.findWords(wordbookId);
-            return ResponseEntity.ok(words);
-        } catch (Exception e) {
-            logger.error("Finding wordbooks failed", e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+    public ResponseEntity<Map<String, Object>> getWords(@PathVariable String wordbookId) {
+        Optional<Map<String, Object>> result = systemWordbookService.getSystemWordbook(wordbookId);
+        if (result.isPresent()) {
+            // 获取 words 列表
+            Map<String, Object> wordbookData = result.get();
+            ObjectId id = new ObjectId(wordbookId);
+            List<Words> words = adminWordbookService.findWords(id);
+            for (Words word : words) {
+                Object wordId = word.getId();
+
+            }
+            wordbookData.remove("words");
+            wordbookData.put("words", words);
+            return ResponseEntity.ok(result.get());
+        } else {
+            Map<String, Object> error = new HashMap<>();
+            error.put("error", "Wordbook not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
         }
     }
+
+
     // 添加词书
     @PostMapping("/addWordbook")
-    public ResponseEntity<Map<String, Object>> addWordbooks(@RequestBody Map<String, Object> wordbookData) {
+    public ResponseEntity<?> addWordbooks(@RequestBody Map<String, Object> wordbookData) {
         try {
             logger.info("Add wordbooks...");
-            Map<String, Object> response = systemWordbookService.createSystemWordbook(wordbookData);
-            logger.info("Add wordbooks successfully");
-            return ResponseEntity.ok(response);
+            Map<String, Object> result = adminWordbookService.createSystemWordbook(wordbookData);
+            if (result != null) {
+                return ResponseEntity.ok(result);
+            } else {
+                Map<String, Object> error = new HashMap<>();
+                error.put("error", "Wordbook not found");
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+            }
         } catch(Exception e) {
             logger.error("Adding wordbooks failed", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
-    // 向词汇列表中添加新词汇
-    @PostMapping("/vocabularies")
-    public ResponseEntity<?> addWord(@RequestBody Words word) {
-        try {
-            Words savedWord = adminWordbookService.createWord(word);
-            return ResponseEntity.ok(savedWord);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to save word");
-        }
-    }
-    // 添加向词书中添加新词汇
+    // 向词书中添加新词汇
     @PostMapping("/{workbookId}/vocabularies")
-    public ResponseEntity<?> addNewWords(@PathVariable String workbookId, @RequestBody List<String> wordIds) {
+    public ResponseEntity<?> addWordAndAddToWordbook(@PathVariable String workbookId, @RequestBody Words word) {
         try {
-            // 记录输入参数
-            logger.info("Attempting to add words to wordbook. Wordbook ID: {}", workbookId);
-            logger.info("Word IDs to add: {}", wordIds);
+            // Step 1: 保存新词汇
+            Words savedWord = adminWordbookService.createWord(word);
+            String wordId = savedWord.getId().toHexString();
 
-            // 记录请求的详细信息
-            if (wordIds == null || wordIds.isEmpty()) {
-                logger.warn("Word IDs list is null or empty");
-                return ResponseEntity.badRequest().build();
-            }
+            logger.info("New word saved with ID: {}", wordId);
 
-            // 添加单词并记录结果
-            Optional<?> result = systemWordbookService.addWordsToWordbook(workbookId, wordIds);
+            // Step 2: 将新词汇加入词书
+            Optional<?> result = systemWordbookService.addWordsToWordbook(workbookId, Collections.singletonList(wordId));
 
             if (result.isPresent()) {
-                logger.info("Successfully added words to wordbook {}", workbookId);
+                logger.info("Successfully added word to wordbook {}", workbookId);
                 return ResponseEntity.ok(result.get());
             } else {
                 logger.warn("Wordbook not found with ID: {}", workbookId);
                 return ResponseEntity.notFound().build();
             }
         } catch (Exception e) {
-            // 记录详细的错误信息
-            logger.error("Error adding words to wordbook. Wordbook ID: {}, Word IDs: {}", workbookId, wordIds);
-            logger.error("Error details: ", e);
-            return ResponseEntity.badRequest().build();
+            logger.error("Error saving word and adding to wordbook. Wordbook ID: {}", workbookId, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to save word or add to wordbook");
         }
     }
+
     // 删除新词汇
     @DeleteMapping("/{wordbookId}/vocabularies")
     public ResponseEntity<?> removeWordsFromWordbook(

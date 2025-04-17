@@ -112,5 +112,11 @@ public class Post {
     public void setVoteCount(int voteCount) {
         this.voteCount = voteCount;
     }
+    public int getPage() {
+        return page;
+    }
+    public void setPage(int page) {
+        this.page = page;
+    }
 }
 
