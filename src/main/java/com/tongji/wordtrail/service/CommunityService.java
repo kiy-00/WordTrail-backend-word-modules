@@ -1,9 +1,12 @@
 package com.tongji.wordtrail.service;
 
+import com.tongji.wordtrail.dto.CommentRequest;
 import com.tongji.wordtrail.dto.PostResponse;
+import com.tongji.wordtrail.model.Comment;
 import com.tongji.wordtrail.model.Favourite;
 import com.tongji.wordtrail.model.Post;
 import com.tongji.wordtrail.model.Vote;
+import com.tongji.wordtrail.repository.CommentRepository;
 import com.tongji.wordtrail.repository.FavouriteRepository;
 import com.tongji.wordtrail.repository.PostRepository;
 import com.tongji.wordtrail.repository.VoteRepository;
@@ -27,12 +30,15 @@ public class CommunityService {
     private final VoteRepository voteRepository;
     @Autowired
     private final FavouriteRepository favouriteRepository;
+    @Autowired
+    private final CommentRepository commentRepository;
 
     @Autowired
-    public CommunityService(PostRepository postRepository, VoteRepository voteRepository, FavouriteRepository favouriteRepository) {
+    public CommunityService(PostRepository postRepository, VoteRepository voteRepository, FavouriteRepository favouriteRepository, CommentRepository commentRepository) {
         this.postRepository = postRepository;
         this.voteRepository = voteRepository;
         this.favouriteRepository = favouriteRepository;
+        this.commentRepository = commentRepository;
     }
 
     public Post createPost(String username, String title, String content, List<String> filePaths) {
@@ -185,5 +191,16 @@ public class CommunityService {
     public List<Favourite> getFavoriteList(String postId, String userId) {
         List<Favourite> favourites = favouriteRepository.findByPostIdAndUserId(postId, userId);
         return favourites;
+    }
+    public void addComment(CommentRequest request) {
+        Comment comment = new Comment(request.getPostId(), request.getContent(), request.getUserId(), LocalDateTime.now(), LocalDateTime.now(), request.getParentComment(), request.getReplyToName(), request.isMyComment(), request.getAvatar());
+        commentRepository.save(comment);
+    }
+    public void deleteComment(String CommentId) {
+        Comment comment = commentRepository.findById(CommentId).get();
+        commentRepository.delete(comment);
+    }
+    public List<Comment> getCommentList(String postId) {
+        return commentRepository.findByPostId(postId);
     }
 }

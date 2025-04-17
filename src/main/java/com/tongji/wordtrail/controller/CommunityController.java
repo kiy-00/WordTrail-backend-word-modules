@@ -1,10 +1,8 @@
 package com.tongji.wordtrail.controller;
 
 import cn.hutool.core.io.FileUtil;
-import com.tongji.wordtrail.dto.AdminWordbooksResponse;
-import com.tongji.wordtrail.dto.DeletePostRequest;
-import com.tongji.wordtrail.dto.PostRequest;
-import com.tongji.wordtrail.dto.PostResponse;
+import com.tongji.wordtrail.dto.*;
+import com.tongji.wordtrail.model.Comment;
 import com.tongji.wordtrail.model.Favourite;
 import com.tongji.wordtrail.model.Post;
 import com.tongji.wordtrail.service.CommunityService;
@@ -213,5 +211,34 @@ public class CommunityController {
         responseData.put("data", favoriteList);
         return ResponseEntity.ok().body(responseData);
     }
-
+    // 添加评论
+    @PostMapping("/comment/post")
+    public ResponseEntity<?> addComment(@RequestBody CommentRequest request) {
+        communityService.addComment(request);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", "评论成功");
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 删除评论
+    @DeleteMapping("/comment/delete")
+    public ResponseEntity<?> deleteComment(@RequestParam("commentId") String commentId) {
+        communityService.deleteComment(commentId);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", "删除成功");
+        return ResponseEntity.ok().body(responseData);
+    }
+    // 查找帖子中的所有评论
+    @GetMapping("/comment/list")
+    public ResponseEntity<?> getCommentList(@RequestParam("postId") String postId) {
+        List<Comment> comments = communityService.getCommentList(postId);
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put("code", 200);
+        responseData.put("msg", null);
+        responseData.put("data", comments);
+        return ResponseEntity.ok().body(responseData);
+    }
 }
