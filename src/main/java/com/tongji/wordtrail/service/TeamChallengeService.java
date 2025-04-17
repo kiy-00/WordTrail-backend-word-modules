@@ -310,19 +310,26 @@ public class TeamChallengeService {
             throw new IllegalArgumentException("只能对活跃状态的挑战进行打卡");
         }
 
-        // 验证挑战日期
+        // 修改这里：验证挑战日期，只比较日期部分
         Date today = new Date();
-        if (today.after(challenge.getEndDate())) {
+        Calendar todayCal = Calendar.getInstance();
+        todayCal.setTime(today);
+
+        Calendar endCal = Calendar.getInstance();
+        endCal.setTime(challenge.getEndDate());
+
+        // 只比较年、月、日
+        boolean sameDay = todayCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR) &&
+                todayCal.get(Calendar.MONTH) == endCal.get(Calendar.MONTH) &&
+                todayCal.get(Calendar.DAY_OF_MONTH) == endCal.get(Calendar.DAY_OF_MONTH);
+
+        boolean beforeEndDay = todayCal.get(Calendar.YEAR) < endCal.get(Calendar.YEAR) ||
+                (todayCal.get(Calendar.YEAR) == endCal.get(Calendar.YEAR) &&
+                        todayCal.get(Calendar.DAY_OF_YEAR) < endCal.get(Calendar.DAY_OF_YEAR));
+
+        if (!(sameDay || beforeEndDay)) {
             throw new IllegalArgumentException("挑战已结束，无法打卡");
         }
-
-        // 修改这里：使用个人打卡系统获取新单词学习数量
-        // 原代码:
-        // List<LearningRecord> todayRecords = learningRecordService.getTodayLearningRecords(userId);
-        // int wordsCompleted = todayRecords.stream()
-        //        .filter(record -> "learn".equals(record.getType()))
-        //        .mapToInt(LearningRecord::getCount)
-        //        .sum();
 
         // 使用与个人打卡系统相同的方法获取今日学习的单词数
         Map<String, Object> todayStats = learningClockInService.getUpdatedUserClockInStats(userId);
@@ -378,7 +385,6 @@ public class TeamChallengeService {
 
         return result;
     }
-
     /**
      * 获取用户的活跃挑战
      */

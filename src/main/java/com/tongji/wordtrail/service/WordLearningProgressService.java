@@ -1,8 +1,7 @@
 package com.tongji.wordtrail.service;
 
-import com.tongji.wordtrail.model.WordLearningProgress;
-import com.tongji.wordtrail.model.SystemWordbook;
-import com.tongji.wordtrail.model.UserWordbook;
+import com.tongji.wordtrail.model.*;
+import com.tongji.wordtrail.repository.LearningRecordRepository;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -10,10 +9,7 @@ import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -27,7 +23,11 @@ public class WordLearningProgressService {
         this.mongoTemplate = mongoTemplate;
     }
 
+    @Autowired
+    private LearningRecordRepository learningRecordRepository;
+
     public WordLearningProgress startLearningWord(String userId, ObjectId wordId) {
+        // 现有代码
         Query query = new Query(Criteria.where("userId").is(userId)
                 .and("wordId").is(wordId));
 
@@ -35,6 +35,25 @@ public class WordLearningProgressService {
         if (progress == null) {
             progress = new WordLearningProgress(userId, wordId);
             progress = mongoTemplate.save(progress);
+
+            // 添加这段代码自动创建学习记录
+            LearningRecord record = new LearningRecord();
+            record.setUserId(userId);
+            record.setDate(new Date());
+            record.setType("learn");
+
+            WordLearningDetail detail = new WordLearningDetail();
+            detail.setWordId(wordId);
+            detail.setResult(true);
+            detail.setStage(0);
+
+            List<WordLearningDetail> words = new ArrayList<>();
+            words.add(detail);
+
+            record.setWords(words);
+            record.setCount(words.size());
+
+            learningRecordRepository.save(record);
         }
         return progress;
     }

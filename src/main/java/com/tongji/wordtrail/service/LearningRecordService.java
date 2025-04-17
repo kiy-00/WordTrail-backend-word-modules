@@ -36,14 +36,22 @@ public class LearningRecordService {
     }
 
     public LearningStatsResponse getUserLearningStats(String userId, Date startDate, Date endDate) {
-        List<LearningRecord> records = learningRecordRepository
-                .findByUserIdAndDateBetweenOrderByDateDesc(userId, startDate, endDate);
+        // 可以使用这些函数转换日期范围，如果它们在您的类中存在
+        Date startOfDay = getDayStart(startDate, 0);
+        Date endOfDay = getDayEnd(endDate, 0);
 
+        List<LearningRecord> records = learningRecordRepository
+                .findByUserIdAndDateBetweenOrderByDateDesc(userId, startOfDay, endOfDay);
+
+        // 统计独立单词ID的数量，而非count总和
         long totalLearnedWords = records.stream()
                 .filter(r -> "learn".equals(r.getType()))
-                .mapToLong(r -> r.getCount())
-                .sum();
+                .flatMap(r -> r.getWords().stream())
+                .map(WordLearningDetail::getWordId) // 假设WordLearningDetail有getWordId方法
+                .distinct()
+                .count();
 
+        // 复习单词仍使用原来的方式，或者也可以用相同的逻辑处理
         long totalReviewedWords = records.stream()
                 .filter(r -> "review".equals(r.getType()))
                 .mapToLong(r -> r.getCount())
@@ -62,7 +70,6 @@ public class LearningRecordService {
                 .dailyAverageWords((totalLearnedWords + totalReviewedWords) / Math.max(1, getDaysBetween(startDate, endDate)))
                 .build();
     }
-
     public Page<LearningRecord> getLearningHistory(String userId, int page, int size, Date startDate, Date endDate) {
         PageRequest pageRequest = PageRequest.of(page, size);
         if (startDate != null && endDate != null) {

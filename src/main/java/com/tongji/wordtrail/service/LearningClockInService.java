@@ -409,17 +409,6 @@ public class LearningClockInService {
         cal.add(Calendar.DAY_OF_YEAR, -6); // 包括今天，共7天
         Date weekStart = cal.getTime();
 
-        // 查询一周内的所有打卡记录（除了今天的）
-        List<LearningClockIn> weekRecords = clockInRepository.findAll().stream()
-                .filter(record -> record.getUserId().equals(userId))
-                .filter(record -> !isSameDay(record.getClockInDate(), todayClockIn.getClockInDate())) // 排除今天的记录
-                .filter(record -> record.getClockInDate().after(weekStart) || isSameDay(record.getClockInDate(), weekStart))
-                .collect(Collectors.toList());
-
-        // 添加今天更新后的记录
-        weekRecords.add(todayClockIn);
-
-        // 构建一周每天的打卡记录
         List<Map<String, Object>> result = new ArrayList<>();
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
 
@@ -433,19 +422,24 @@ public class LearningClockInService {
             Map<String, Object> dayRecord = new HashMap<>();
             dayRecord.put("date", dateString);
 
-            // 查找这一天的打卡记录
-            Optional<LearningClockIn> record = weekRecords.stream()
-                    .filter(r -> isSameDay(r.getClockInDate(), currentDate))
-                    .findFirst();
-
-            if (record.isPresent()) {
-                dayRecord.put("status", record.get().getStatus());
-                dayRecord.put("newWordsCompleted", record.get().getNewWordsCompleted());
-                dayRecord.put("reviewWordsCompleted", record.get().getReviewWordsCompleted());
+            if (i == 0) {
+                // 今天的记录使用已更新的
+                dayRecord.put("status", todayClockIn.getStatus());
+                dayRecord.put("newWordsCompleted", todayClockIn.getNewWordsCompleted());
+                dayRecord.put("reviewWordsCompleted", todayClockIn.getReviewWordsCompleted());
             } else {
-                dayRecord.put("status", false);
-                dayRecord.put("newWordsCompleted", 0);
-                dayRecord.put("reviewWordsCompleted", 0);
+                // 对过去的记录，先尝试更新数据，再返回
+                LearningClockIn updatedRecord = updateClockInForDate(userId, currentDate);
+
+                if (updatedRecord != null) {
+                    dayRecord.put("status", updatedRecord.getStatus());
+                    dayRecord.put("newWordsCompleted", updatedRecord.getNewWordsCompleted());
+                    dayRecord.put("reviewWordsCompleted", updatedRecord.getReviewWordsCompleted());
+                } else {
+                    dayRecord.put("status", false);
+                    dayRecord.put("newWordsCompleted", 0);
+                    dayRecord.put("reviewWordsCompleted", 0);
+                }
             }
 
             result.add(dayRecord);
