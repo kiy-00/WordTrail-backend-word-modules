@@ -34,7 +34,7 @@ public class AvatarController {
         this.adminService = adminService;
     }
 
-    private static final String ABSOLUTE_FILE_PATH = "D:program3\\Documents\\upload\\images\\";
+    private static final String ABSOLUTE_FILE_PATH = "C:\\Users\\11248\\Documents\\WordTrail-admin-fronted\\public\\";
     @PostMapping("/UploadAvatar")
     public ResponseEntity<Map<String, Object>> uploadAvatar(
             @RequestParam("username") String username,
@@ -63,12 +63,12 @@ public class AvatarController {
 
         Map<String, Object> response = new HashMap<>();
 
-        String avatarUrl ="http://localhost:8282/images/" + fileName;
+        String avatarUrl ="http://localhost:8080/images/" + fileName;
         // 存储到数据库中
-        if (adminService.findByUsername(username, avatarUrl)){
+        if (adminService.findByUsername(username, fileName)){
             // 构造响应体
             Map<String, Object> data = new HashMap<>();
-            data.put("avatarUrl", avatarUrl);
+            data.put("avatarUrl", fileName);
 
 
             response.put("code", 200);
